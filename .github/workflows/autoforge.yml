@@ -1,0 +1,145 @@
+# AutoForge: Autonomous metric-driven code improvement
+#
+# Runs health checks on PRs and optionally executes improvement workflows
+# on a schedule.
+
+name: AutoForge
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 2am UTC
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode: health (check only) or run (improve)'
+        required: true
+        default: 'health'
+        type: choice
+        options:
+          - health
+          - run
+      workflow:
+        description: 'Workflow to run (for run mode)'
+        required: false
+        default: 'complexity_refactor'
+        type: string
+      target_path:
+        description: 'Path to target (default: repo root)'
+        required: false
+        default: '.'
+        type: string
+      budget_tokens:
+        description: 'Max token budget'
+        required: false
+        default: '200000'
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  health:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'health') || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install AutoForge
+        run: |
+          pip install -e .
+          pip install complexity-accounting
+
+      - name: Run Health Check
+        id: health
+        run: |
+          autoforge health --format json --output health-report.md > health-report.json
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          cat health-report.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('health-report.md', 'utf8');
+            const body = `## AutoForge Health Check\n\n${report}`;
+
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.data.find(c =>
+              c.body.startsWith('## AutoForge Health Check')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoforge-health-report
+          path: |
+            health-report.json
+            health-report.md
+
+  run:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'run'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install AutoForge
+        run: |
+          pip install -e .
+          pip install complexity-accounting
+
+      - name: Run Workflow
+        run: |
+          autoforge run ${{ inputs.workflow }} \
+            --path "${{ inputs.target_path }}" \
+            --max-tokens ${{ inputs.budget_tokens }} \
+            --skip-git \
+            --dry-run \
+            --output .autoforge/reports
+
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoforge-run-report
+          path: .autoforge/reports/

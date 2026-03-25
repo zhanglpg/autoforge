@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoforge"
+version = "0.1.0"
+description = "Autonomous metric-driven agentic coding framework"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["code-quality", "autonomous", "agentic", "metrics", "refactoring"]
+dependencies = [
+    "pyyaml>=6.0",
+    "complexity-accounting>=1.6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4.0"]
+
+[project.scripts]
+autoforge = "autoforge.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/zhanglpg/autoforge"
+Repository = "https://github.com/zhanglpg/autoforge"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["autoforge"]
+
+[tool.coverage.report]
+show_missing = true
