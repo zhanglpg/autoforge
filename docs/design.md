@@ -53,13 +53,13 @@ Karpathy's autoresearch validates this at the research level — LLMs + quantita
     │       ▲                           │        │
     │       └───── iterate ─────────────┘        │
     └────────────────────────────────────────────┘
-         │                    │
-    ┌────▼─────┐        ┌────▼─────┐
-    │  Metric  │        │  Tool    │
-    │  Adapters│        │  Adapters│
-    │ (per-lang│        │ (per-lang│
-    │  per-type)│        │  per-type)│
-    └──────────┘        └──────────┘
+                    │
+              ┌─────▼──────┐
+              │   Metric   │
+              │  Adapters  │
+              │ (per-lang  │
+              │  per-type) │
+              └────────────┘
 ```
 
 ### 3.2 Component Responsibilities
@@ -83,7 +83,7 @@ Karpathy's autoresearch validates this at the research level — LLMs + quantita
 
 **Workflow Runner** — Executes the measure → act → validate loop for a specific workflow. Stateless per-iteration; all state lives in the filesystem (git working tree).
 
-**Metric Adapters** — Thin wrappers that normalize tool output into a standard schema:
+**Metric Adapters** — Each adapter encapsulates both the tool invocation and output normalization for a specific metric type. An adapter handles prerequisite checks, runs the underlying tool (pytest-cov, istanbul, semgrep, etc.), parses the output, and returns a standard schema:
 
 ```json
 {
@@ -95,8 +95,6 @@ Karpathy's autoresearch validates this at the research level — LLMs + quantita
   "timestamp": "..."
 }
 ```
-
-**Tool Adapters** — Language-specific bindings for metric collection tools (pytest-cov, istanbul, semgrep, pyright, etc.).
 
 ### 3.3 Orchestration Layer Decision: Claude Code as Agent Runtime
 
