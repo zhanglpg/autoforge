@@ -128,10 +128,17 @@ class RegressionGuard:
     def validate_iteration(
         self,
         run_tests: bool = True,
+        adapter: MetricAdapter | None = None,
+        repo_path: str | None = None,
+        target_path: str | None = None,
+        tolerance_map: dict[str, float] | None = None,
     ) -> tuple[bool, list[str]]:
         """
         Full validation after an iteration.
         Returns (passed, list of issues).
+
+        If adapter/repo_path/target_path are provided and constraint baselines
+        have been set, constraint metrics will also be checked.
         """
         issues = []
 
@@ -139,5 +146,16 @@ class RegressionGuard:
             passed, output = self.run_tests()
             if not passed:
                 issues.append(f"Tests failed:\n{output[-500:]}")
+
+        if (
+            self._constraint_baselines
+            and adapter is not None
+            and repo_path is not None
+            and target_path is not None
+        ):
+            violations = self.check_constraints(
+                adapter, repo_path, target_path, tolerance_map or {}
+            )
+            issues.extend(violations)
 
         return len(issues) == 0, issues
