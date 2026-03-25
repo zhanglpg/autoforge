@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 
 from autoforge.adapters.base import BaseMetricAdapter
-from autoforge.models import MetricResult
+from autoforge.models import Direction, MetricResult
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,6 @@ class ComplexityAdapter(BaseMetricAdapter):
         summary = data.get("summary", {})
         ncs = summary.get("net_complexity_score", 0.0)
 
-        # Build per-file breakdown
         breakdown: dict[str, float] = {}
         for file_info in data.get("files", []):
             path = file_info.get("path", "")
@@ -109,9 +108,8 @@ class ComplexityAdapter(BaseMetricAdapter):
             metric_name="net_complexity_score",
             value=ncs,
             unit="score",
-            direction="minimize",
+            direction=Direction.MINIMIZE,
             breakdown=breakdown,
-            raw_output=result.stdout,
             tool="complexity-accounting",
             timestamp=datetime.utcnow().isoformat(),
         )

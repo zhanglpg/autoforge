@@ -24,6 +24,7 @@ def _setup_logging(verbose: bool = False) -> None:
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        force=True,
     )
 
 
@@ -34,7 +35,7 @@ def _setup_logging(verbose: bool = False) -> None:
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute a workflow."""
     from autoforge.registry import find_workflow_config, get_adapter
-    from autoforge.reporting import save_run_report
+    from autoforge.reporting import report_to_markdown, save_run_report
     from autoforge.runner import WorkflowRunner
 
     # Load workflow config
@@ -53,7 +54,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         config.budget.max_wall_clock_minutes = args.max_time
 
     # Get the adapter
-    adapter = get_adapter(args.adapter or config.name)
+    adapter_name = args.adapter or config.adapter or config.name
+    adapter = get_adapter(adapter_name)
 
     # Resolve paths
     repo_path = str(Path(args.repo).resolve())
@@ -81,7 +83,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # Print summary
     print()
-    print(report.to_markdown())
+    print(report_to_markdown(report))
     print()
     print(f"Reports saved to:")
     print(f"  JSON: {json_path}")
@@ -127,7 +129,7 @@ def cmd_health(args: argparse.Namespace) -> int:
                 "metric_name": r.metric_name,
                 "value": r.value,
                 "unit": r.unit,
-                "direction": r.direction,
+                "direction": r.direction.value,
                 "breakdown": r.breakdown,
             }
             for name, r in metrics.items()

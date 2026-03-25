@@ -17,12 +17,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from autoforge.adapters.base import BaseMetricAdapter
 from autoforge.budget import BudgetExhausted, BudgetManager
 from autoforge.git_manager import GitManager
 from autoforge.models import (
     BudgetConfig,
+    Direction,
     IterationRecord,
+    MetricAdapter,
     MetricResult,
     RunOutcome,
     RunReport,
@@ -39,7 +40,7 @@ class WorkflowRunner:
     def __init__(
         self,
         config: WorkflowConfig,
-        adapter: BaseMetricAdapter,
+        adapter: MetricAdapter,
         repo_path: str,
         target_path: str,
         *,
@@ -227,10 +228,9 @@ class WorkflowRunner:
 
     def _target_met(self, result: MetricResult) -> bool:
         """Check if the target value has been met."""
-        if result.direction == "minimize":
+        if result.direction is Direction.MINIMIZE:
             return result.value <= self.target_value
-        else:
-            return result.value >= self.target_value
+        return result.value >= self.target_value
 
     def _run_agent(self, current_metric: MetricResult, iteration: int) -> None:
         """Invoke the Claude Code agent to make improvements."""
