@@ -1,10 +1,10 @@
 # AutoForge Implementation Progress
 
-*Last updated: 2026-03-25*
+*Last updated: 2026-03-25 (Phase 0 closed)*
 
 Tracks implementation status against the [design doc](design.md) roadmap.
 
-## Phase 0: Foundation — Status: Nearly Complete
+## Phase 0: Foundation — Status: Complete
 
 **Goal:** Extract the proven pattern into a reusable framework.
 
@@ -23,12 +23,12 @@ Tracks implementation status against the [design doc](design.md) roadmap.
 | GitHub Actions integration | Done | `tests.yml` (CI) + `autoforge.yml` (health/run) |
 | Constraint metric checking at iteration time | Done | Runner sets baselines at startup, passes through to `validate_iteration()` |
 | **Lint/type error validation** | **Gap** | Design specifies it; not yet in regression guard |
-| **Token tracking from agent** | **Gap** | Budget tracks tokens but runner never reports actual usage |
+| Token tracking from agent | Done | Best-effort parsing of Claude Code output (JSON + stderr); falls back to 0 |
 | **Max files per iteration enforcement** | **Gap** | In BudgetConfig but not enforced at runtime |
 
 ### Phase 0 Verdict
 
-The core loop works end-to-end. The four gaps above are enforcement details that don't block the happy path but weaken the safety guarantees the design calls for. See [Deviations](#deviations-from-design-doc) below.
+Phase 0 is complete. The core loop works end-to-end with budget enforcement, regression guards, constraint checking, and best-effort token tracking. Two minor gaps remain (lint validation, max files enforcement) which are deferred to Phase 2 and are documented in the deviations section below.
 
 ## Phase 1: Test Quality & Test-as-Spec — Status: Not Started
 
@@ -83,13 +83,11 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 **Verdict:** Correct sequencing. This is Phase 4 scope. Design is aspirational here and doesn't need correction.
 
-### 3. Tool Adapters merged into Metric Adapters
+### ~~3. Tool Adapters merged into Metric Adapters~~ (Fixed)
 
-**Design (Section 3.1):** Separate "Metric Adapters" and "Tool Adapters" as distinct components.
+**Design (Section 3.1):** Originally specified separate "Metric Adapters" and "Tool Adapters" as distinct components.
 
-**Implementation:** `BaseMetricAdapter` handles both measurement and tool invocation. No separate Tool Adapter abstraction.
-
-**Verdict: Update the design doc.** The merged approach is simpler and there's no demonstrated need for the separation. The adapter already encapsulates tool-specific logic (command building, output parsing). Splitting would add indirection without benefit unless we find adapters sharing the same tool differently.
+**Status:** Fixed. Design doc Section 3.1 updated to show a single "Metric Adapters" component that handles both tool invocation and output normalization, matching the implementation.
 
 ### 4. ~~Constraint metrics not checked during iteration~~ (Fixed)
 
@@ -105,13 +103,13 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 **Verdict:** Defer to Phase 2 (Type Safety). Not critical for Phase 0 since the complexity workflow doesn't need it. But should be noted as a gap.
 
-### 6. Token tracking is a no-op
+### ~~6. Token tracking is a no-op~~ (Fixed — best-effort)
 
 **Design (Sections 3.2, 3.3):** Budget manager tracks token spend for cost control.
 
-**Implementation:** `BudgetManager` has token tracking, `BudgetConfig` has `max_tokens`, but `runner.py` calls `record_iteration(improvement_pct=...)` without ever passing `tokens`. The agent invocation via `subprocess` doesn't capture token usage from Claude.
+**Status:** Fixed. Runner now uses `--output-format json` and parses Claude Code output for token counts via `_parse_token_usage()`. Tries JSON `usage` field first, then regex on stderr. Falls back to 0 if unavailable. Token counts are passed to `budget.record_iteration(tokens=...)` and stored on `IterationRecord.tokens_used`.
 
-**Verdict: Fix or acknowledge.** Real token tracking requires parsing Claude Code output or using the API. For now, update the design doc to note this is best-effort until the agent provides structured token reporting. The budget check exists but is effectively dormant.
+**Limitation:** Token tracking is best-effort. Claude Code does not guarantee structured token reporting in all modes. The budget enforcement for tokens will only trigger if the agent output includes parseable token counts.
 
 ### 7. Max files per iteration not enforced
 
@@ -132,6 +130,7 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 ## Recommended Next Actions
 
 1. ~~**Wire up constraint checking in runner**~~ Done.
-2. **Add token usage logging (best-effort)** — Parse Claude Code output for token counts, or log a placeholder. Acknowledge the limitation in docs.
-3. **Update design doc Section 3.1** — Merge "Tool Adapters" into "Metric Adapters" to match reality.
-4. **Close Phase 0** — The three remaining gaps above are minor; constraint checking was the last structural gap.
+2. ~~**Add token usage logging (best-effort)**~~ Done. Runner parses Claude Code JSON/stderr output for tokens.
+3. ~~**Update design doc Section 3.1**~~ Done. Merged "Tool Adapters" into "Metric Adapters."
+4. ~~**Close Phase 0**~~ Done. Phase 0 is complete.
+5. **Begin Phase 1 (Test Quality & Test-as-Spec)** — Next milestone.

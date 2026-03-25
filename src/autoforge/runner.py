@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -131,8 +132,10 @@ class WorkflowRunner:
 
                 try:
                     # ACT: Run the agent
+                    iter_tokens = 0
                     if not self.dry_run:
-                        self._run_agent(current, iteration_num)
+                        iter_tokens = self._run_agent(current, iteration_num)
+                    record.tokens_used = iter_tokens
 
                     # MEASURE: Re-measure after agent action
                     after = self._measure(f"iteration {iteration_num}")
@@ -165,7 +168,7 @@ class WorkflowRunner:
                             # Still count as an iteration for budget
                             record.duration_seconds = time.monotonic() - iter_start
                             self.report.iterations.append(record)
-                            self.budget.record_iteration(improvement_pct=0.0)
+                            self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
                             continue
 
                     # Commit this iteration
@@ -186,7 +189,7 @@ class WorkflowRunner:
 
                     record.duration_seconds = time.monotonic() - iter_start
                     self.report.iterations.append(record)
-                    self.budget.record_iteration(improvement_pct=improvement_pct)
+                    self.budget.record_iteration(tokens=iter_tokens, improvement_pct=improvement_pct)
 
                     logger.info(
                         "Iteration %d: %.2f -> %.2f (%.1f%% improvement)",
@@ -209,7 +212,7 @@ class WorkflowRunner:
                     record.error = str(e)
                     record.duration_seconds = time.monotonic() - iter_start
                     self.report.iterations.append(record)
-                    self.budget.record_iteration(improvement_pct=0.0)
+                    self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
 
                     # Rollback on error
                     if self.git:
@@ -267,8 +270,12 @@ class WorkflowRunner:
             return result.value <= self.target_value
         return result.value >= self.target_value
 
-    def _run_agent(self, current_metric: MetricResult, iteration: int) -> None:
-        """Invoke the Claude Code agent to make improvements."""
+    def _run_agent(self, current_metric: MetricResult, iteration: int) -> int:
+        """Invoke the Claude Code agent to make improvements.
+
+        Returns:
+            Best-effort token count extracted from agent output (0 if unavailable).
+        """
         if self.agent_command:
             # Use explicit agent command
             cmd = self.agent_command
@@ -303,7 +310,7 @@ class WorkflowRunner:
             prompt_file = Path(self.repo_path) / ".autoforge-prompt.tmp"
             prompt_file.write_text(prompt)
 
-            cmd = f"claude --print -p \"$(cat {prompt_file})\""
+            cmd = f"claude --print --output-format json -p \"$(cat {prompt_file})\""
 
         logger.info("Running agent...")
         result = subprocess.run(
@@ -324,6 +331,59 @@ class WorkflowRunner:
             logger.warning("Agent exited with code %d", result.returncode)
             if result.stderr:
                 logger.warning("Agent stderr: %s", result.stderr[-500:])
+
+        # Best-effort token extraction
+        tokens = self._parse_token_usage(result)
+        if tokens > 0:
+            logger.info("Agent token usage: %d", tokens)
+        else:
+            logger.debug("Token usage not available from agent output")
+        return tokens
+
+    @staticmethod
+    def _parse_token_usage(result: subprocess.CompletedProcess) -> int:
+        """Best-effort extraction of token usage from Claude Code output.
+
+        Tries two strategies:
+        1. Parse JSON output (--output-format json) for usage fields.
+        2. Scan stderr for token usage summary lines.
+
+        Returns 0 if token usage cannot be determined. This is expected —
+        Claude Code does not guarantee structured token reporting in all modes.
+        """
+        # Strategy 1: JSON output with usage field
+        if result.stdout:
+            try:
+                data = json.loads(result.stdout)
+                # Claude --output-format json may include a usage object
+                usage = data.get("usage", {}) if isinstance(data, dict) else {}
+                input_tokens = usage.get("input_tokens", 0)
+                output_tokens = usage.get("output_tokens", 0)
+                if input_tokens or output_tokens:
+                    return input_tokens + output_tokens
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+        # Strategy 2: Regex scan of stderr for token summary
+        # Claude Code may print lines like "Total tokens: 12345" or
+        # "input: 1000 output: 2000" to stderr
+        if result.stderr:
+            # Pattern: "Total tokens: <number>" or "total_tokens: <number>"
+            match = re.search(r"[Tt]otal.?tokens\D+(\d[\d,]*)", result.stderr)
+            if match:
+                return int(match.group(1).replace(",", ""))
+            # Pattern: input/output token counts
+            in_match = re.search(r"input.?tokens\D+(\d[\d,]*)", result.stderr)
+            out_match = re.search(r"output.?tokens\D+(\d[\d,]*)", result.stderr)
+            if in_match or out_match:
+                total = 0
+                if in_match:
+                    total += int(in_match.group(1).replace(",", ""))
+                if out_match:
+                    total += int(out_match.group(1).replace(",", ""))
+                return total
+
+        return 0
 
     def _finalize(self) -> None:
         """Finalize the run report."""
