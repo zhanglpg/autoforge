@@ -91,6 +91,9 @@ class WorkflowRunner:
             self.report.initial_metric = baseline.value
             logger.info("Baseline %s: %.2f", baseline.metric_name, baseline.value)
 
+            # Set constraint baselines on the regression guard
+            self._set_constraint_baselines()
+
             # Check if target already met
             if self._target_met(baseline):
                 logger.info("Target already met! Nothing to do.")
@@ -139,9 +142,15 @@ class WorkflowRunner:
                     if self.git:
                         record.files_modified = self.git.get_modified_files()
 
-                    # VALIDATE: Regression guard
+                    # VALIDATE: Regression guard (tests + constraint metrics)
                     if not self.skip_tests:
-                        passed, issues = self.guard.validate_iteration(run_tests=True)
+                        passed, issues = self.guard.validate_iteration(
+                            run_tests=True,
+                            adapter=self.adapter,
+                            repo_path=self.repo_path,
+                            target_path=self.target_path,
+                            tolerance_map=self._build_tolerance_map(),
+                        )
                         if not passed:
                             record.constraint_violations = issues
                             logger.warning(
@@ -218,6 +227,32 @@ class WorkflowRunner:
 
         self._finalize()
         return self.report
+
+    def _set_constraint_baselines(self) -> None:
+        """Measure and record constraint baselines on the regression guard."""
+        for constraint in self.config.constraint_metrics:
+            try:
+                result = self.adapter.measure(self.repo_path, self.target_path)
+                self.guard.set_constraint_baseline(constraint.name, result)
+                logger.info(
+                    "Constraint baseline '%s': %.2f (tolerance: %.1f%%)",
+                    constraint.name,
+                    result.value,
+                    constraint.tolerance_percent,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to measure constraint baseline '%s': %s",
+                    constraint.name,
+                    e,
+                )
+
+    def _build_tolerance_map(self) -> dict[str, float]:
+        """Build a tolerance map from the workflow config's constraint metrics."""
+        return {
+            c.name: c.tolerance_percent
+            for c in self.config.constraint_metrics
+        }
 
     def _measure(self, label: str) -> MetricResult:
         """Run the metric adapter and return results."""

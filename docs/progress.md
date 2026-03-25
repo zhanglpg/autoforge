@@ -21,7 +21,7 @@ Tracks implementation status against the [design doc](design.md) roadmap.
 | Structured logging | Done | Standard `logging` throughout all modules |
 | Per-run report output (JSON + markdown) | Done | `reporting.py` — JSON, markdown, health dashboard |
 | GitHub Actions integration | Done | `tests.yml` (CI) + `autoforge.yml` (health/run) |
-| **Constraint metric checking at iteration time** | **Gap** | `check_constraints()` exists but not called by runner |
+| Constraint metric checking at iteration time | Done | Runner sets baselines at startup, passes through to `validate_iteration()` |
 | **Lint/type error validation** | **Gap** | Design specifies it; not yet in regression guard |
 | **Token tracking from agent** | **Gap** | Budget tracks tokens but runner never reports actual usage |
 | **Max files per iteration enforcement** | **Gap** | In BudgetConfig but not enforced at runtime |
@@ -42,16 +42,16 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 ## Test Coverage
 
-194 tests across 9 files. All core modules have dedicated test suites.
+202 tests across 9 files. All core modules have dedicated test suites.
 
 | Module | Test File | Tests |
 |--------|-----------|-------|
 | models | test_models.py | 31 |
 | CLI | test_cli.py | 24 |
-| runner | test_runner.py | 18 |
+| runner | test_runner.py | 22 |
 | budget | test_budget.py | 20 |
 | git_manager | test_git_manager.py | 20 |
-| regression | test_regression.py | 21 |
+| regression | test_regression.py | 25 |
 | reporting | test_reporting.py | 25 |
 | adapters | test_adapters.py | 17 |
 | registry | test_registry.py | 18 |
@@ -91,13 +91,11 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 **Verdict: Update the design doc.** The merged approach is simpler and there's no demonstrated need for the separation. The adapter already encapsulates tool-specific logic (command building, output parsing). Splitting would add indirection without benefit unless we find adapters sharing the same tool differently.
 
-### 4. Constraint metrics not checked during iteration
+### 4. ~~Constraint metrics not checked during iteration~~ (Fixed)
 
 **Design (Section 5.2):** Regression guard checks that constraint metrics haven't degraded beyond tolerance.
 
-**Implementation:** `RegressionGuard.check_constraints()` exists but `validate_iteration()` only runs tests — it never calls `check_constraints()`. The runner never sets constraint baselines either.
-
-**Verdict: Fix the implementation.** This is a Phase 0 deliverable. The wiring is 90% there; the runner just needs to measure constraint baselines at startup and pass them through during validation.
+**Status:** Fixed. Runner now measures constraint baselines at startup via `_set_constraint_baselines()` and passes adapter/tolerance info to `validate_iteration()`, which calls `check_constraints()` when baselines are present.
 
 ### 5. Lint/type error validation missing
 
@@ -133,7 +131,7 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 ## Recommended Next Actions
 
-1. **Wire up constraint checking in runner** — Measure constraint baselines at start, call `check_constraints()` in `validate_iteration()`. Small change, closes the biggest Phase 0 gap.
+1. ~~**Wire up constraint checking in runner**~~ Done.
 2. **Add token usage logging (best-effort)** — Parse Claude Code output for token counts, or log a placeholder. Acknowledge the limitation in docs.
 3. **Update design doc Section 3.1** — Merge "Tool Adapters" into "Metric Adapters" to match reality.
-4. **Close Phase 0** — The four gaps above are the only items between current state and Phase 0 completion.
+4. **Close Phase 0** — The three remaining gaps above are minor; constraint checking was the last structural gap.

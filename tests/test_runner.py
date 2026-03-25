@@ -12,6 +12,7 @@ from autoforge.models import (
     AgentConfig,
     BudgetConfig,
     Direction,
+    MetricConstraint,
     MetricResult,
     PrimaryMetricConfig,
     RunOutcome,
@@ -470,6 +471,157 @@ class TestTargetMetDirection:
                 skip_git=True, skip_tests=True, dry_run=True,
             )
             report = runner.run()
+        assert report.outcome == RunOutcome.TARGET_MET
+
+
+class TestConstraintChecking:
+    """Test that the runner wires up constraint baselines and checks them."""
+
+    def test_constraint_violation_triggers_rollback(self):
+        """When a constraint metric degrades beyond tolerance, the iteration is rejected."""
+        call_count = 0
+
+        def mock_measure(repo_path, target_path):
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                # Baseline measurement (call 1) + constraint baseline (call 2)
+                return _make_metric(8.0)
+            # After agent action: primary improves but we return same metric
+            # that the constraint check will also use
+            return _make_metric(12.0)  # 50% degradation, well above 10% tolerance
+
+        adapter = MagicMock()
+        adapter.measure.side_effect = mock_measure
+
+        config = _make_config(
+            constraint_metrics=[
+                MetricConstraint(
+                    name="test_complexity",
+                    tolerance_percent=10.0,
+                    direction=Direction.MINIMIZE,
+                ),
+            ],
+            budget=BudgetConfig(max_iterations=1, stall_patience=10),
+        )
+        with tempfile.TemporaryDirectory() as d:
+            runner = WorkflowRunner(
+                config=config, adapter=adapter,
+                repo_path=d, target_path=d,
+                target_value=1.0,
+                skip_git=True, skip_tests=False,
+                test_command="true",  # tests pass
+                dry_run=True,
+            )
+            report = runner.run()
+
+        assert report.outcome == RunOutcome.BUDGET_EXHAUSTED
+        assert len(report.iterations) == 1
+        assert report.iterations[0].constraint_violations
+
+    def test_constraint_within_tolerance_passes(self):
+        """When constraint metric stays within tolerance, iteration succeeds."""
+        call_count = 0
+
+        def mock_measure(repo_path, target_path):
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                return _make_metric(8.0)
+            # Small change within 10% tolerance
+            return _make_metric(8.5)
+
+        adapter = MagicMock()
+        adapter.measure.side_effect = mock_measure
+
+        config = _make_config(
+            constraint_metrics=[
+                MetricConstraint(
+                    name="test_complexity",
+                    tolerance_percent=10.0,
+                    direction=Direction.MINIMIZE,
+                ),
+            ],
+            budget=BudgetConfig(max_iterations=1, stall_patience=10),
+        )
+        with tempfile.TemporaryDirectory() as d:
+            runner = WorkflowRunner(
+                config=config, adapter=adapter,
+                repo_path=d, target_path=d,
+                target_value=1.0,
+                skip_git=True, skip_tests=False,
+                test_command="true",
+                dry_run=True,
+            )
+            report = runner.run()
+
+        assert report.outcome == RunOutcome.BUDGET_EXHAUSTED
+        assert len(report.iterations) == 1
+        assert not report.iterations[0].constraint_violations
+
+    def test_no_constraints_still_works(self):
+        """Runner works fine with no constraint metrics defined."""
+        call_count = 0
+
+        def mock_measure(repo_path, target_path):
+            nonlocal call_count
+            call_count += 1
+            return _make_metric(10.0 if call_count == 1 else 2.0)
+
+        adapter = MagicMock()
+        adapter.measure.side_effect = mock_measure
+
+        config = _make_config(
+            constraint_metrics=[],
+            budget=BudgetConfig(max_iterations=5, stall_patience=10),
+        )
+        with tempfile.TemporaryDirectory() as d:
+            runner = WorkflowRunner(
+                config=config, adapter=adapter,
+                repo_path=d, target_path=d,
+                target_value=3.0,
+                skip_git=True, skip_tests=True, dry_run=True,
+            )
+            report = runner.run()
+
+        assert report.outcome == RunOutcome.TARGET_MET
+
+    def test_constraint_baseline_measurement_error_is_non_fatal(self):
+        """If measuring a constraint baseline fails, the run continues."""
+        call_count = 0
+
+        def mock_measure(repo_path, target_path):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _make_metric(8.0)  # primary baseline
+            if call_count == 2:
+                raise RuntimeError("tool not installed")  # constraint baseline fails
+            return _make_metric(2.0)  # iteration succeeds
+
+        adapter = MagicMock()
+        adapter.measure.side_effect = mock_measure
+
+        config = _make_config(
+            constraint_metrics=[
+                MetricConstraint(
+                    name="flaky_metric",
+                    tolerance_percent=10.0,
+                    direction=Direction.MINIMIZE,
+                ),
+            ],
+            budget=BudgetConfig(max_iterations=5, stall_patience=10),
+        )
+        with tempfile.TemporaryDirectory() as d:
+            runner = WorkflowRunner(
+                config=config, adapter=adapter,
+                repo_path=d, target_path=d,
+                target_value=3.0,
+                skip_git=True, skip_tests=True, dry_run=True,
+            )
+            report = runner.run()
+
+        # Should still reach target despite failed constraint baseline
         assert report.outcome == RunOutcome.TARGET_MET
 
 

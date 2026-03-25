@@ -202,6 +202,89 @@ class TestConstraintBaselines:
             assert len(violations) == 1  # 20% > default 10%
 
 
+class TestValidateIterationWithConstraints:
+    """Test that validate_iteration checks constraints when provided."""
+
+    def test_constraints_checked_when_adapter_provided(self):
+        with tempfile.TemporaryDirectory() as d:
+            guard = RegressionGuard(d, test_command="true")
+
+            baseline = MetricResult(
+                metric_name="ncs", value=5.0, unit="score", direction=Direction.MINIMIZE
+            )
+            guard.set_constraint_baseline("ncs", baseline)
+
+            # Adapter returns degraded value (20% worse, exceeds 10% tolerance)
+            adapter = MagicMock()
+            adapter.measure.return_value = MetricResult(
+                metric_name="ncs", value=6.0, unit="score", direction=Direction.MINIMIZE
+            )
+
+            passed, issues = guard.validate_iteration(
+                run_tests=True,
+                adapter=adapter,
+                repo_path=d,
+                target_path=d,
+                tolerance_map={"ncs": 10.0},
+            )
+            assert not passed
+            assert any("ncs" in issue for issue in issues)
+
+    def test_constraints_skipped_when_no_adapter(self):
+        with tempfile.TemporaryDirectory() as d:
+            guard = RegressionGuard(d, test_command="true")
+
+            baseline = MetricResult(
+                metric_name="ncs", value=5.0, unit="score", direction=Direction.MINIMIZE
+            )
+            guard.set_constraint_baseline("ncs", baseline)
+
+            # No adapter passed — constraints not checked
+            passed, issues = guard.validate_iteration(run_tests=True)
+            assert passed
+            assert issues == []
+
+    def test_constraints_skipped_when_no_baselines(self):
+        with tempfile.TemporaryDirectory() as d:
+            guard = RegressionGuard(d, test_command="true")
+            adapter = MagicMock()
+
+            # No baselines set — constraints not checked
+            passed, issues = guard.validate_iteration(
+                run_tests=True,
+                adapter=adapter,
+                repo_path=d,
+                target_path=d,
+                tolerance_map={},
+            )
+            assert passed
+            assert issues == []
+
+    def test_both_tests_and_constraints_can_fail(self):
+        with tempfile.TemporaryDirectory() as d:
+            guard = RegressionGuard(d, test_command="false")
+
+            baseline = MetricResult(
+                metric_name="ncs", value=5.0, unit="score", direction=Direction.MINIMIZE
+            )
+            guard.set_constraint_baseline("ncs", baseline)
+
+            adapter = MagicMock()
+            adapter.measure.return_value = MetricResult(
+                metric_name="ncs", value=6.0, unit="score", direction=Direction.MINIMIZE
+            )
+
+            passed, issues = guard.validate_iteration(
+                run_tests=True,
+                adapter=adapter,
+                repo_path=d,
+                target_path=d,
+                tolerance_map={"ncs": 10.0},
+            )
+            assert not passed
+            assert len(issues) == 2  # test failure + constraint violation
+
+
 class TestRegressionViolation:
     def test_exception_has_reason(self):
         exc = RegressionViolation("tests broke")
