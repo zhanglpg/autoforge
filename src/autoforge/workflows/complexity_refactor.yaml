@@ -1,0 +1,70 @@
+# AutoForge Workflow: Complexity Refactoring
+#
+# Uses complexity-accounting to measure Net Complexity Score (NCS) and
+# iteratively refactors code to reduce it. This is the original proven
+# workflow from agentic-coding-skills.
+
+name: complexity_refactor
+version: "1.0"
+description: "Reduce code complexity through iterative metric-driven refactoring"
+adapter: complexity
+
+language_support:
+  python:
+    metric_tool: complexity-accounting
+    metric_command: "python -m complexity_accounting scan {target_path} --format json --no-churn"
+    metric_parser: "complexity_json"
+  go:
+    metric_tool: complexity-accounting
+    metric_command: "python -m complexity_accounting scan {target_path} --format json --no-churn"
+    metric_parser: "complexity_json"
+  typescript:
+    metric_tool: complexity-accounting
+    metric_command: "python -m complexity_accounting scan {target_path} --format json --no-churn"
+    metric_parser: "complexity_json"
+  javascript:
+    metric_tool: complexity-accounting
+    metric_command: "python -m complexity_accounting scan {target_path} --format json --no-churn"
+    metric_parser: "complexity_json"
+
+primary_metric:
+  name: net_complexity_score
+  direction: minimize
+  default_target: 3.0
+
+constraint_metrics:
+  - name: test_suite_pass
+    tolerance_percent: 0
+    direction: maximize
+
+budget:
+  max_iterations: 10
+  max_tokens: 500000
+  max_wall_clock_minutes: 30
+  stall_patience: 3
+  min_improvement_percent: 1.0
+  max_files_per_iteration: 5
+
+scope:
+  priority: worst_first
+
+agent:
+  skill: "refactor-complexity"
+  system_prompt_addendum: |
+    You are performing complexity-driven iterative refactoring.
+
+    Prioritize refactoring targets in this order:
+    1. Mega-functions with cognitive complexity > 40
+    2. Dispatch chains (long if/elif sequences)
+    3. Deep nesting (> 3 levels)
+    4. Duplicated logic blocks
+    5. Dead code elimination
+    6. Architectural coupling reduction
+
+    Select 2-4 related refactorings per iteration rather than
+    attempting comprehensive fixes simultaneously.
+
+    Changes must preserve existing behavior — these are pure
+    refactorings with no feature additions.
+
+    Stop when NCS drops below target or improvement plateaus (< 1%).
