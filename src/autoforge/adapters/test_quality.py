@@ -784,11 +784,14 @@ class TestQualityAdapter(BaseMetricAdapter):
         test_map = map_tests_to_sources(source_files, test_files, self.test_dir_pattern)
         eff_weights = self.weights.effective_weights()
 
-        # Build normalized coverage lookup to handle path prefix mismatches
-        # (e.g. "./src/foo.py" vs "src/foo.py")
+        # Build normalized coverage lookup to handle path mismatches.
+        # coverage.json reports paths relative to repo_path (cwd for pytest),
+        # while discover_python_source_files returns absolute paths.
+        # Resolve coverage paths to absolute before normalizing.
         norm_coverage: dict[str, FileCoverageData] = {}
         for cov_path, cov_data in coverage_data.items():
-            norm_coverage[os.path.normpath(cov_path)] = cov_data
+            abs_cov = os.path.join(repo_path, cov_path) if not os.path.isabs(cov_path) else cov_path
+            norm_coverage[os.path.normpath(abs_cov)] = cov_data
 
         file_results: dict[str, FileTestQuality] = {}
 
