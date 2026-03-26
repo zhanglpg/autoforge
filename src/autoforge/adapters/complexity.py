@@ -12,7 +12,7 @@ import json
 import logging
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from autoforge.adapters.base import BaseMetricAdapter
 from autoforge.models import Direction, MetricResult
@@ -111,7 +111,7 @@ class ComplexityAdapter(BaseMetricAdapter):
             direction=Direction.MINIMIZE,
             breakdown=breakdown,
             tool="complexity-accounting",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     def identify_targets(self, result: MetricResult, n: int) -> list[str]:

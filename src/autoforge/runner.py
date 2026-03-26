@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from autoforge.budget import BudgetExhausted, BudgetManager
@@ -387,7 +387,7 @@ class WorkflowRunner:
 
     def _finalize(self) -> None:
         """Finalize the run report."""
-        self.report.finished_at = datetime.utcnow().isoformat()
+        self.report.finished_at = datetime.now(timezone.utc).isoformat()
         self.report.total_tokens = self.budget.tokens_used
         self.report.total_duration_seconds = self.budget.elapsed_seconds
 

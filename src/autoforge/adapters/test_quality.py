@@ -10,15 +10,13 @@ from __future__ import annotations
 
 import ast
 import enum
-import glob
 import json
 import logging
 import os
 import subprocess
 import sys
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from autoforge.adapters.base import BaseMetricAdapter
 from autoforge.models import Direction, MetricResult
@@ -711,7 +709,7 @@ class TestQualityAdapter(BaseMetricAdapter):
             direction=Direction.MAXIMIZE,
             breakdown=breakdown,
             tool="test_quality",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     def identify_targets(self, result: MetricResult, n: int) -> list[str]:

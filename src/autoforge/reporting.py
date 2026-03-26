@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from autoforge.models import Direction, MetricResult, RunReport
@@ -113,7 +113,7 @@ def save_run_report(report: RunReport, output_dir: str) -> tuple[str, str]:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     base_name = f"autoforge-{report.workflow}-{timestamp}"
 
     json_path = out / f"{base_name}.json"
@@ -140,7 +140,7 @@ def format_health_dashboard(metrics: dict[str, MetricResult]) -> str:
     lines = [
         "# AutoForge Codebase Health Report",
         "",
-        f"*Generated: {datetime.utcnow().isoformat()}*",
+        f"*Generated: {datetime.now(timezone.utc).isoformat()}*",
         "",
         "| Metric | Value | Unit | Status |",
         "|--------|-------|------|--------|",
