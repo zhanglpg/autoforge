@@ -91,20 +91,20 @@ class TestStallDetection:
         bm.record_iteration(improvement_pct=5.0)
         bm.record_iteration(improvement_pct=3.0)
         bm.record_iteration(improvement_pct=2.0)
-        assert not bm.check_stall()
+        assert bm.check_stall() == False
 
     def test_stall_when_all_below_threshold(self):
         bm = BudgetManager(BudgetConfig(stall_patience=3, min_improvement_percent=0.5))
         bm.record_iteration(improvement_pct=0.1)
         bm.record_iteration(improvement_pct=0.2)
         bm.record_iteration(improvement_pct=0.3)
-        assert bm.check_stall()
+        assert bm.check_stall() == True
 
     def test_no_stall_insufficient_iterations(self):
         bm = BudgetManager(BudgetConfig(stall_patience=3, min_improvement_percent=0.5))
         bm.record_iteration(improvement_pct=0.1)
         bm.record_iteration(improvement_pct=0.1)
-        assert not bm.check_stall()  # only 2 < patience of 3
+        assert bm.check_stall() == False  # only 2 < patience of 3
 
     def test_stall_only_checks_recent_window(self):
         """Good early iterations shouldn't mask later stalls."""
@@ -113,25 +113,25 @@ class TestStallDetection:
         bm.record_iteration(improvement_pct=8.0)   # good
         bm.record_iteration(improvement_pct=0.1)   # stall
         bm.record_iteration(improvement_pct=0.2)   # stall
-        assert bm.check_stall()
+        assert bm.check_stall() == True
 
     def test_stall_with_zero_improvements(self):
         bm = BudgetManager(BudgetConfig(stall_patience=2, min_improvement_percent=0.5))
         bm.record_iteration(improvement_pct=0.0)
         bm.record_iteration(improvement_pct=0.0)
-        assert bm.check_stall()
+        assert bm.check_stall() == True
 
     def test_no_stall_with_negative_improvement(self):
         """Negative improvement (regression) still counts as 'change' above threshold."""
         bm = BudgetManager(BudgetConfig(stall_patience=2, min_improvement_percent=0.5))
         bm.record_iteration(improvement_pct=-5.0)  # abs(-5) > 0.5
         bm.record_iteration(improvement_pct=-3.0)
-        assert not bm.check_stall()
+        assert bm.check_stall() == False
 
     def test_patience_of_one(self):
         bm = BudgetManager(BudgetConfig(stall_patience=1, min_improvement_percent=1.0))
         bm.record_iteration(improvement_pct=0.5)
-        assert bm.check_stall()
+        assert bm.check_stall() == True
 
 
 class TestBudgetSummary:

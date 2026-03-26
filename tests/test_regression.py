@@ -63,33 +63,35 @@ class TestRunTests:
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d)
             passed, output = guard.run_tests()
-            assert passed is True
-            assert "No tests configured" in output
+            assert passed == True
+            assert output == "No tests configured"
 
     def test_explicit_command_passes(self):
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="true")
             passed, output = guard.run_tests()
-            assert passed is True
+            assert passed == True
+            assert isinstance(output, str)
 
     def test_explicit_command_fails(self):
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="false")
             passed, output = guard.run_tests()
-            assert passed is False
+            assert passed == False
+            assert isinstance(output, str)
 
     def test_command_output_captured(self):
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="echo hello_test")
             passed, output = guard.run_tests()
-            assert passed is True
+            assert passed == True
             assert "hello_test" in output
 
     def test_stderr_captured_on_failure(self):
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="echo error_msg >&2; false")
             passed, output = guard.run_tests()
-            assert not passed
+            assert passed == False
             assert "error_msg" in output
 
 
@@ -98,14 +100,14 @@ class TestValidateIteration:
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="true")
             passed, issues = guard.validate_iteration(run_tests=True)
-            assert passed
+            assert passed == True
             assert issues == []
 
     def test_fails_when_tests_fail(self):
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="echo BOOM; false")
             passed, issues = guard.validate_iteration(run_tests=True)
-            assert not passed
+            assert passed == False
             assert len(issues) == 1
             assert "Tests failed" in issues[0]
 
@@ -113,7 +115,7 @@ class TestValidateIteration:
         with tempfile.TemporaryDirectory() as d:
             guard = RegressionGuard(d, test_command="false")  # would fail
             passed, issues = guard.validate_iteration(run_tests=False)
-            assert passed
+            assert passed == True
             assert issues == []
 
 
@@ -227,7 +229,8 @@ class TestValidateIterationWithConstraints:
                 target_path=d,
                 tolerance_map={"ncs": 10.0},
             )
-            assert not passed
+            assert passed == False
+            assert len(issues) >= 1
             assert any("ncs" in issue for issue in issues)
 
     def test_constraints_skipped_when_no_adapter(self):
@@ -241,7 +244,7 @@ class TestValidateIterationWithConstraints:
 
             # No adapter passed — constraints not checked
             passed, issues = guard.validate_iteration(run_tests=True)
-            assert passed
+            assert passed == True
             assert issues == []
 
     def test_constraints_skipped_when_no_baselines(self):
@@ -257,7 +260,7 @@ class TestValidateIterationWithConstraints:
                 target_path=d,
                 tolerance_map={},
             )
-            assert passed
+            assert passed == True
             assert issues == []
 
     def test_both_tests_and_constraints_can_fail(self):
@@ -281,7 +284,7 @@ class TestValidateIterationWithConstraints:
                 target_path=d,
                 tolerance_map={"ncs": 10.0},
             )
-            assert not passed
+            assert passed == False
             assert len(issues) == 2  # test failure + constraint violation
 
 
