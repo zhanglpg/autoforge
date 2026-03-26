@@ -70,20 +70,23 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 ## Test Coverage
 
-316 tests across 10 files. All core modules have dedicated test suites.
+370 tests across 13 files. All core modules have dedicated test suites.
 
 | Module | Test File | Tests |
 |--------|-----------|-------|
 | models | test_models.py | 31 |
-| CLI | test_cli.py | 24 |
+| CLI (main) | test___main__.py | 21 |
+| CLI (e2e) | test_cli.py | 24 |
 | runner | test_runner.py | 22 |
 | budget | test_budget.py | 20 |
 | git_manager | test_git_manager.py | 20 |
 | regression | test_regression.py | 25 |
 | reporting | test_reporting.py | 25 |
 | adapters | test_adapters.py | 17 |
+| base adapter | test_base.py | 6 |
+| complexity | test_complexity.py | 13 |
 | registry | test_registry.py | 18 |
-| test_quality | test_test_quality_adapter.py | 114 |
+| test_quality | test_test_quality_adapter.py | 128 |
 
 ## CI/CD
 
