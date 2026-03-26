@@ -373,7 +373,8 @@ class TestAgentInvocation:
         config = _make_config(budget=BudgetConfig(max_iterations=1, stall_patience=10))
         with tempfile.TemporaryDirectory() as d:
             # Patch subprocess.run to avoid actually calling claude
-            with patch("autoforge.runner.subprocess.run") as mock_run:
+            with patch("autoforge.runner.subprocess.run") as mock_run, \
+                 patch("autoforge.runner.shutil.which", return_value="/usr/bin/claude"):
                 mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
                 runner = WorkflowRunner(
                     config=config, adapter=adapter,
@@ -407,7 +408,8 @@ class TestAgentInvocation:
             budget=BudgetConfig(max_iterations=1, stall_patience=10),
         )
         with tempfile.TemporaryDirectory() as d:
-            with patch("autoforge.runner.subprocess.run") as mock_run:
+            with patch("autoforge.runner.subprocess.run") as mock_run, \
+                 patch("autoforge.runner.shutil.which", return_value="/usr/bin/claude"):
                 mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
                 runner = WorkflowRunner(
                     config=config, adapter=adapter,

@@ -140,6 +140,7 @@ class PrimaryMetricConfig:
 @dataclass
 class AgentConfig:
     """Agent configuration for a workflow."""
+    command: str = "claude"
     skill: str = ""
     system_prompt_addendum: str = ""
 
@@ -215,6 +216,7 @@ class WorkflowConfig:
 
         agent_data = data.get("agent", {})
         agent = AgentConfig(
+            command=agent_data.get("command", "claude"),
             skill=agent_data.get("skill", ""),
             system_prompt_addendum=agent_data.get("system_prompt_addendum", ""),
         )

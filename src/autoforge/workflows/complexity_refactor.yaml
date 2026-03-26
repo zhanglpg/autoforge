@@ -49,6 +49,7 @@ scope:
   priority: worst_first
 
 agent:
+  command: "claude"  # Agent binary to invoke (default: claude)
   skill: "refactor-complexity"
   system_prompt_addendum: |
     You are performing complexity-driven iterative refactoring.

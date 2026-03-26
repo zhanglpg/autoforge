@@ -37,6 +37,7 @@ scope:
   priority: worst_first
 
 agent:
+  command: "claude"  # Agent binary to invoke (default: claude)
   skill: "improve-test-quality"
   system_prompt_addendum: |
     You are improving test quality. For each target file:

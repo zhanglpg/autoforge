@@ -164,4 +164,5 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 4. ~~**Close Phase 0**~~ Done. Phase 0 is complete.
 5. ~~**Begin Phase 1 (Test Quality & Test-as-Spec)**~~ Done. TQS adapter, workflow, tests all complete.
 6. ~~**Remove TQS data model design doc**~~ Done. `docs/design-tqs-data-models-api.md` removed after implementation.
-7. **Begin Phase 2 (Type Safety + Security)** — Next milestone.
+7. ~~**Document agent integration in README**~~ Done. Added Prerequisites section (Claude Code requirement), Agent Integration section (subprocess model, custom agents, workflow YAML config), and updated Architecture descriptions.
+8. **Begin Phase 2 (Type Safety + Security)** — Next milestone.
