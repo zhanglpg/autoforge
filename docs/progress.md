@@ -30,7 +30,35 @@ Tracks implementation status against the [design doc](design.md) roadmap.
 
 Phase 0 is complete. The core loop works end-to-end with budget enforcement, regression guards, constraint checking, and best-effort token tracking. Two minor gaps remain (lint validation, max files enforcement) which are deferred to Phase 2 and are documented in the deviations section below.
 
-## Phase 1: Test Quality & Test-as-Spec — Status: Not Started
+## Phase 1: Test Quality & Test-as-Spec — Status: Complete
+
+**Goal:** Add a test quality metric adapter with composite TQS scoring.
+
+| Deliverable | Status | Notes |
+|------------|--------|-------|
+| TestQualityAdapter implementation | Done | `adapters/test_quality.py` — 4 sub-metrics, weight redistribution |
+| Coverage score (line + branch) | Done | `pytest-cov` JSON parsing, 0.6*line + 0.4*branch weighting |
+| Function coverage gaps | Done | AST-based public function extraction, cross-ref with coverage |
+| Assertion quality score | Done | Strong/structural/weak classification, weighted density formula |
+| Mutation score (optional, sampled) | Done | `mutmut` integration, configurable sample size, disabled by default |
+| Per-file TQS breakdown | Done | Composite score per source file via `MetricResult.breakdown` |
+| Test-to-source mapping | Done | Convention-based (`test_foo.py` → `foo.py`, `foo_test.py` → `foo.py`) |
+| Weight redistribution | Done | Disabled metrics (weight=0) redistribute proportionally |
+| Workflow YAML | Done | `workflows/test_quality.yaml` — target 80, budget 15 iters / 500k tokens |
+| Registry integration | Done | `test_quality` registered alongside `complexity` |
+| Unit tests (pure helpers) | Done | Data models, classification, scoring, file discovery |
+| Orchestration tests (mocked) | Done | `measure()`, `_collect_coverage()`, `_analyze_all_files()`, `check_prerequisites()`, mutation methods |
+| Edge case tests (verification plan) | Done | No tests→low TQS, coverage without assertions penalized, weight redistribution, unmapped files excluded |
+| Workflow YAML integration tests | Done | Config loading, budget, constraints verified |
+| `datetime.utcnow()` deprecation fix | Done | All modules migrated to `datetime.now(timezone.utc)` |
+
+### Phase 1 Verdict
+
+Phase 1 is complete. The TQS adapter faithfully implements the design in `docs/design-test-quality-metrics.md`:
+- 4 sub-metrics with configurable weights and automatic redistribution
+- Full orchestration pipeline: coverage collection → AST analysis → assertion quality → optional mutation → aggregation
+- 316 tests (37 new orchestration/edge-case tests added), all passing
+- Spec coverage (LLM-as-judge) intentionally deferred per design doc — belongs in Phase 3
 
 ## Phase 2: Type Safety + Security — Status: Not Started
 
@@ -42,7 +70,7 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 ## Test Coverage
 
-202 tests across 9 files. All core modules have dedicated test suites.
+316 tests across 10 files. All core modules have dedicated test suites.
 
 | Module | Test File | Tests |
 |--------|-----------|-------|
@@ -55,6 +83,7 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 | reporting | test_reporting.py | 25 |
 | adapters | test_adapters.py | 17 |
 | registry | test_registry.py | 18 |
+| test_quality | test_test_quality_adapter.py | 114 |
 
 ## CI/CD
 
@@ -133,5 +162,6 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 2. ~~**Add token usage logging (best-effort)**~~ Done. Runner parses Claude Code JSON/stderr output for tokens.
 3. ~~**Update design doc Section 3.1**~~ Done. Merged "Tool Adapters" into "Metric Adapters."
 4. ~~**Close Phase 0**~~ Done. Phase 0 is complete.
-5. **Begin Phase 1 (Test Quality & Test-as-Spec)** — Next milestone.
+5. ~~**Begin Phase 1 (Test Quality & Test-as-Spec)**~~ Done. TQS adapter, workflow, tests all complete.
 6. ~~**Remove TQS data model design doc**~~ Done. `docs/design-tqs-data-models-api.md` removed after implementation.
+7. **Begin Phase 2 (Type Safety + Security)** — Next milestone.

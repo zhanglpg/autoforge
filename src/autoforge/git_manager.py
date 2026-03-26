@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class GitManager:
     def create_branch(self, workflow_name: str) -> str:
         """Create and checkout a new branch for this workflow run."""
         self.original_branch = self.get_current_branch()
-        timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         self.branch_name = f"autoforge/{workflow_name}/{timestamp}"
         self._run(["checkout", "-b", self.branch_name])
         logger.info("Created branch: %s", self.branch_name)

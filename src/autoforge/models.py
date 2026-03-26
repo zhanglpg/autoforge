@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -49,7 +49,7 @@ class MetricResult:
     direction: Direction          # whether to maximize or minimize
     breakdown: dict[str, float] = field(default_factory=dict)  # per-file values
     tool: str = ""                # e.g., "complexity-accounting"
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def improved_over(self, previous: MetricResult, threshold: float = 0.0) -> bool:
         """Check if this result is an improvement over a previous one.
@@ -292,6 +292,6 @@ class RunReport:
     total_tokens: int = 0
     total_duration_seconds: float = 0.0
     branch: str = ""
-    started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     finished_at: str = ""
     error: str = ""
