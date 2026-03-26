@@ -16,6 +16,16 @@ AutoForge wraps any code-quality metric into an iterative improvement loop drive
 - **YAML workflow configs** &mdash; declarative workflow definitions that specify metrics, budgets, constraints, agent prompts, and language-specific tooling.
 - **Reporting** &mdash; JSON and Markdown run reports with health dashboards.
 
+## Prerequisites
+
+AutoForge requires a **local AI coding agent** to perform the actual code modifications. By default, it uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic's CLI tool for Claude).
+
+- **Claude Code** must be installed and authenticated on your machine. The `claude` command must be available on your `PATH`.
+- AutoForge invokes `claude --print --output-format json -p "<prompt>"` as a subprocess each iteration.
+- You can substitute any other agent or script using the `--agent-command` flag (see [CLI Reference](#cli-reference)).
+
+AutoForge itself does **not** call the Claude API directly &mdash; it orchestrates the iteration loop (measure, budget, git, regression) and delegates code changes to the local agent process.
+
 ## Installation
 
 ```bash
@@ -116,10 +126,55 @@ List all registered workflows and adapters.
 ```
 
 - **WorkflowRunner** &mdash; orchestrates the iteration loop: measure baseline, invoke agent, re-measure, validate, commit or rollback.
-- **BudgetManager** &mdash; enforces iteration/token/time limits and detects improvement stalls.
+- **Agent (Claude Code)** &mdash; the external coding agent invoked as a subprocess each iteration. The runner constructs a prompt with the current metric value, target, and priority files, then calls `claude --print --output-format json`. Use `--agent-command` to substitute a different agent.
+- **BudgetManager** &mdash; enforces iteration/token/time limits and detects improvement stalls. Token usage is parsed best-effort from the agent's JSON output or stderr.
 - **GitManager** &mdash; creates feature branches, commits per iteration, rolls back failed iterations.
 - **RegressionGuard** &mdash; runs tests and checks constraint metrics between iterations.
-- **MetricAdapter** &mdash; protocol for plugging in any measurement tool. Adapters normalize tool output into a standard `MetricResult`.
+- **MetricAdapter** &mdash; protocol for plugging in any measurement tool. Adapters normalize tool output into a standard `MetricResult` and identify priority files for the agent to focus on.
+
+## Agent Integration
+
+AutoForge follows a **subprocess-based agent model**: the framework handles everything except the actual code changes, which are delegated to a local coding agent.
+
+### Default: Claude Code
+
+Each iteration, the `WorkflowRunner`:
+
+1. Calls `adapter.identify_targets()` to find priority files needing improvement.
+2. Builds a structured prompt containing: iteration number, current metric value, target, direction (minimize/maximize), priority file list, and any `system_prompt_addendum` from the workflow YAML.
+3. Writes the prompt to a temp file and invokes:
+   ```
+   claude --print --output-format json -p "$(cat <prompt_file>)"
+   ```
+4. Parses token usage from the agent's JSON output (or stderr) for budget tracking.
+
+The agent runs inside the repository working directory and directly modifies files on disk. After the agent returns, AutoForge re-measures, validates (tests + constraints), and commits or rolls back.
+
+### Custom Agents
+
+Use `--agent-command` to substitute any command that accepts a prompt on stdin or as an argument:
+
+```bash
+# Use a custom script
+autoforge run complexity_refactor --path ./src --target 3.0 \
+  --agent-command "python my_agent.py"
+
+# Use a different CLI tool
+autoforge run complexity_refactor --path ./src --target 3.0 \
+  --agent-command "aider --message"
+```
+
+### Workflow YAML Agent Config
+
+Each workflow YAML can include an `agent` section with a `system_prompt_addendum` that provides domain-specific instructions appended to every iteration prompt:
+
+```yaml
+agent:
+  skill: "refactor-complexity"
+  system_prompt_addendum: |
+    You are performing complexity-driven iterative refactoring.
+    Prioritize extracting helper functions and reducing nesting depth.
+```
 
 ## Built-in Workflows
 
