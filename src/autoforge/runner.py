@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -60,7 +61,10 @@ class WorkflowRunner:
         self.skip_tests = skip_tests
         self.skip_git = skip_git
         self.dry_run = dry_run
+        # CLI --agent-command provides a full custom command (used as-is)
         self.agent_command = agent_command
+        # Configured agent binary from workflow YAML (used in prompt-building path)
+        self.agent_binary = config.agent.command or "claude"
 
         self.budget = BudgetManager(config.budget)
         self.git = GitManager(repo_path) if not skip_git else None
@@ -70,6 +74,23 @@ class WorkflowRunner:
             workflow=config.name,
             target={config.primary_metric.name: self.target_value},
         )
+
+    def _check_agent_available(self) -> None:
+        """Verify the configured agent command is available on PATH.
+
+        Raises RuntimeError if the agent binary cannot be found.
+        """
+        # For custom commands, check the first token; otherwise check the configured binary
+        if self.agent_command:
+            binary = self.agent_command.split()[0]
+        else:
+            binary = self.agent_binary
+        if not shutil.which(binary):
+            raise RuntimeError(
+                f"Agent command '{binary}' not found on PATH. "
+                f"Install it or use --agent-command to specify an alternative."
+            )
+        logger.info("Agent binary found: %s", shutil.which(binary))
 
     def run(self) -> RunReport:
         """Execute the full workflow. Returns a RunReport."""
@@ -81,6 +102,10 @@ class WorkflowRunner:
             self.config.primary_metric.direction,
             self.target_value,
         )
+
+        # Fail fast if agent is not available
+        if not self.dry_run:
+            self._check_agent_available()
 
         # Create git branch
         if self.git:
@@ -271,16 +296,16 @@ class WorkflowRunner:
         return result.value >= self.target_value
 
     def _run_agent(self, current_metric: MetricResult, iteration: int) -> int:
-        """Invoke the Claude Code agent to make improvements.
+        """Invoke the coding agent to make improvements.
 
         Returns:
             Best-effort token count extracted from agent output (0 if unavailable).
         """
         if self.agent_command:
-            # Use explicit agent command
+            # Use explicit custom command as-is
             cmd = self.agent_command
         else:
-            # Build default agent invocation
+            # Build default agent invocation using configured binary
             targets = self.adapter.identify_targets(
                 current_metric,
                 self.config.budget.max_files_per_iteration,
@@ -310,7 +335,7 @@ class WorkflowRunner:
             prompt_file = Path(self.repo_path) / ".autoforge-prompt.tmp"
             prompt_file.write_text(prompt)
 
-            cmd = f"claude --print --output-format json -p \"$(cat {prompt_file})\""
+            cmd = f"{self.agent_binary} --print --output-format json -p \"$(cat {prompt_file})\""
 
         logger.info("Running agent...")
         result = subprocess.run(

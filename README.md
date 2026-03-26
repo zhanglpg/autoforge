@@ -18,11 +18,11 @@ AutoForge wraps any code-quality metric into an iterative improvement loop drive
 
 ## Prerequisites
 
-AutoForge requires a **local AI coding agent** to perform the actual code modifications. By default, it uses [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic's CLI tool for Claude).
+AutoForge requires a **local AI coding agent** to perform the actual code modifications. The agent is configurable &mdash; it defaults to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) but can be changed per workflow or at the command line.
 
-- **Claude Code** must be installed and authenticated on your machine. The `claude` command must be available on your `PATH`.
-- AutoForge invokes `claude --print --output-format json -p "<prompt>"` as a subprocess each iteration.
-- You can substitute any other agent or script using the `--agent-command` flag (see [CLI Reference](#cli-reference)).
+- The configured agent binary must be installed and available on your `PATH`. AutoForge checks this at startup and **fails fast** with a clear error if the agent cannot be found.
+- By default, AutoForge invokes `claude --print --output-format json -p "<prompt>"` as a subprocess each iteration.
+- To use a different agent, set `agent.command` in your workflow YAML or use the `--agent-command` CLI flag (see [Agent Integration](#agent-integration)).
 
 AutoForge itself does **not** call the Claude API directly &mdash; it orchestrates the iteration loop (measure, budget, git, regression) and delegates code changes to the local agent process.
 
@@ -90,7 +90,7 @@ Execute a metric-driven improvement workflow.
 | `--skip-tests` | Skip test validation between iterations |
 | `--skip-git` | Skip git branch/commit management |
 | `--dry-run` | Measure only, don't run the agent |
-| `--agent-command` | Custom agent command |
+| `--agent-command` | Custom agent command (overrides workflow `agent.command`; used as-is) |
 | `--output, -o` | Output directory for reports |
 
 ### `autoforge health`
@@ -166,15 +166,20 @@ autoforge run complexity_refactor --path ./src --target 3.0 \
 
 ### Workflow YAML Agent Config
 
-Each workflow YAML can include an `agent` section with a `system_prompt_addendum` that provides domain-specific instructions appended to every iteration prompt:
+Each workflow YAML can include an `agent` section to configure the agent binary and provide domain-specific instructions:
 
 ```yaml
 agent:
+  command: "claude"  # Agent binary (default: claude). Change to use a different agent.
   skill: "refactor-complexity"
   system_prompt_addendum: |
     You are performing complexity-driven iterative refactoring.
     Prioritize extracting helper functions and reducing nesting depth.
 ```
+
+### Fail-Fast Validation
+
+AutoForge verifies the agent binary exists on `PATH` before starting any iterations. If the agent is not found, the run fails immediately with a clear error message suggesting either installing the agent or using `--agent-command`.
 
 ## Built-in Workflows
 

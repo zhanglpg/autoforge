@@ -263,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument(
         "--agent-command",
         default=None,
-        help="Custom agent command to run",
+        help="Custom agent command (overrides workflow agent.command; used as-is)",
     )
     run_p.add_argument(
         "--output", "-o",
