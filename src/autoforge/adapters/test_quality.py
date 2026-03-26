@@ -784,11 +784,17 @@ class TestQualityAdapter(BaseMetricAdapter):
         test_map = map_tests_to_sources(source_files, test_files, self.test_dir_pattern)
         eff_weights = self.weights.effective_weights()
 
+        # Build normalized coverage lookup to handle path prefix mismatches
+        # (e.g. "./src/foo.py" vs "src/foo.py")
+        norm_coverage: dict[str, FileCoverageData] = {}
+        for cov_path, cov_data in coverage_data.items():
+            norm_coverage[os.path.normpath(cov_path)] = cov_data
+
         file_results: dict[str, FileTestQuality] = {}
 
         for sf in source_files:
-            # Coverage data
-            cov = coverage_data.get(sf)
+            # Coverage data — use normalized path for lookup
+            cov = norm_coverage.get(os.path.normpath(sf))
             cov_score = cov.combined_score if cov else 0.0
 
             # Function gap analysis

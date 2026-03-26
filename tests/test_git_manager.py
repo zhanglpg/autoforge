@@ -56,12 +56,12 @@ class TestGitManagerBasics:
 
     def test_is_clean(self, git_repo):
         gm = GitManager(str(git_repo))
-        assert gm.is_clean()
+        assert gm.is_clean() == True
 
     def test_is_not_clean_with_changes(self, git_repo):
         (git_repo / "new_file.py").write_text("x = 1\n")
         gm = GitManager(str(git_repo))
-        assert not gm.is_clean()
+        assert gm.is_clean() == False
 
 
 class TestGitManagerBranching:
@@ -92,7 +92,7 @@ class TestGitManagerCommit:
         (git_repo / "new.py").write_text("x = 1\n")
         sha = gm.commit_iteration("wf", 1, 10.0, 8.0)
         assert len(sha) == 40
-        assert gm.is_clean()
+        assert gm.is_clean() == True
         assert gm.get_iteration_count() == 1
 
         # Verify commit message format
@@ -131,11 +131,11 @@ class TestGitManagerRollback:
 
         (git_repo / "new.py").write_text("x = 1\n")
         gm.commit_iteration("wf", 1, 10.0, 8.0)
-        assert (git_repo / "new.py").exists()
+        assert (git_repo / "new.py").exists() == True
         assert gm.get_iteration_count() == 1
 
         gm.rollback_iteration()
-        assert not (git_repo / "new.py").exists()
+        assert (git_repo / "new.py").exists() == False
         assert gm.get_iteration_count() == 0
 
     def test_rollback_uncommitted_changes(self, git_repo):
@@ -143,11 +143,11 @@ class TestGitManagerRollback:
         gm.create_branch("wf")
 
         (git_repo / "uncommitted.py").write_text("x = 1\n")
-        assert not gm.is_clean()
+        assert gm.is_clean() == False
 
         gm.rollback_iteration()
-        assert gm.is_clean()
-        assert not (git_repo / "uncommitted.py").exists()
+        assert gm.is_clean() == True
+        assert (git_repo / "uncommitted.py").exists() == False
 
     def test_rollback_preserves_earlier_commits(self, git_repo):
         gm = GitManager(str(git_repo))
@@ -160,8 +160,8 @@ class TestGitManagerRollback:
         gm.commit_iteration("wf", 2, 8.0, 7.0)
 
         gm.rollback_iteration()
-        assert (git_repo / "keep.py").exists()
-        assert not (git_repo / "discard.py").exists()
+        assert (git_repo / "keep.py").exists() == True
+        assert (git_repo / "discard.py").exists() == False
 
 
 class TestGitManagerModifiedFiles:

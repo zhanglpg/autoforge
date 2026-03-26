@@ -307,8 +307,9 @@ class TestReportFinalization:
             )
             report = runner.run()
 
-        assert report.started_at
-        assert report.finished_at
+        assert report.started_at != ""
+        assert report.finished_at != ""
+        assert isinstance(report.total_duration_seconds, (int, float))
         assert report.total_duration_seconds >= 0
 
     def test_default_target_from_config(self):
@@ -384,9 +385,9 @@ class TestAgentInvocation:
                 report = runner.run()
 
             # Agent was called
-            assert mock_run.called
+            assert mock_run.called == True
             # Prompt file should be cleaned up
-            assert not (Path(d) / ".autoforge-prompt.tmp").exists()
+            assert (Path(d) / ".autoforge-prompt.tmp").exists() == False
 
     def test_run_agent_without_addendum(self):
         """Agent prompt works when no system_prompt_addendum is set."""
@@ -415,7 +416,7 @@ class TestAgentInvocation:
                     skip_git=True, skip_tests=True,
                 )
                 report = runner.run()
-            assert mock_run.called
+            assert mock_run.called == True
 
     def test_agent_nonzero_exit_is_not_fatal(self):
         """Agent returning non-zero should log warning but continue."""

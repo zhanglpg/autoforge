@@ -19,8 +19,8 @@ class TestSaveRunReport:
         )
         with tempfile.TemporaryDirectory() as d:
             json_path, md_path = save_run_report(report, d)
-            assert Path(json_path).exists()
-            assert Path(md_path).exists()
+            assert Path(json_path).exists() == True
+            assert Path(md_path).exists() == True
             assert "test_wf" in Path(json_path).name
             assert Path(json_path).suffix == ".json"
             assert Path(md_path).suffix == ".md"
@@ -58,8 +58,8 @@ class TestSaveRunReport:
         with tempfile.TemporaryDirectory() as d:
             nested = str(Path(d) / "a" / "b" / "c")
             json_path, md_path = save_run_report(report, nested)
-            assert Path(json_path).exists()
-            assert Path(md_path).exists()
+            assert Path(json_path).exists() == True
+            assert Path(md_path).exists() == True
 
 
 class TestHealthDashboard:
@@ -72,11 +72,13 @@ class TestHealthDashboard:
             ),
         }
         dashboard = format_health_dashboard(metrics)
+        assert isinstance(dashboard, str)
         assert "Health Report" in dashboard
         assert "5.20" in dashboard
         assert "a.py" in dashboard
         assert "b.py" in dashboard
         assert "Moderate" in dashboard
+        assert len(dashboard) > 0
 
     def test_multiple_metrics(self):
         metrics = {
