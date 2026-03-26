@@ -139,30 +139,38 @@ The driver is deliberately thin — it doesn't make code decisions, it just mana
 
 **Key insight:** The highest value isn't in improving line coverage on existing code — it's in using test quality as a specification signal that drives implementation.
 
-**Two modes of operation:**
+**Two layers of measurement:**
 
-- **Mode A — Improve test quality on existing code (retrofit)**
-- **Mode B — Test-as-Spec Implementation Loop (greenfield / feature development)**
+- **Script-based TQS (Test Quality Score):** Deterministic, fast, runs every iteration
+- **LLM-as-judge spec coverage:** Semantic evaluation of whether tests fully specify a design doc (separate workflow, see Section 4.2.6)
 
-Test quality metrics:
+Script-based TQS metrics (deterministic, run every iteration):
 
 | Metric | What it measures | Tool |
 |--------|-----------------|------|
-| Mutation score | Do tests actually catch bugs when code is mutated? | mutmut, Stryker |
-| Use-case coverage | Are real user scenarios tested? | LLM-as-judge |
-| Edge case coverage | Boundary conditions, empty inputs, error paths | LLM-as-judge + mutation |
-| Assertion density | Meaningful assertions per test | AST analysis |
-| Contract verification | API contracts, invariants, pre/post conditions | LLM-as-judge |
-| Branch coverage | Traditional code path coverage | pytest-cov, c8 |
+| Line + branch coverage | Traditional code path coverage | pytest-cov, c8 |
+| Function coverage gaps | % of public functions with any test | AST analysis + coverage |
+| Assertion quality | Meaningful assertions per test (strong/structural/weak classification) | AST analysis |
+| Mutation score (optional) | Do tests actually catch bugs when code is mutated? | mutmut, Stryker |
 
-Composite score:
+TQS composite score (default weights, redistribute when mutation disabled):
 ```
-0.35 * mutation_score +
-0.25 * usecase_coverage +
-0.20 * edge_case_coverage +
-0.10 * assertion_density_score +
-0.10 * branch_coverage
+0.30 * coverage_score +
+0.20 * function_coverage_gaps +
+0.30 * assertion_quality_score +
+0.20 * mutation_score
 ```
+
+LLM-as-judge metrics (semantic, separate evaluation pass):
+
+| Metric | What it measures | Tool |
+|--------|-----------------|------|
+| Spec coverage | Do tests fully specify the design document? | LLM-as-judge |
+| Use-case coverage | Are real user scenarios tested? | LLM-as-judge |
+| Edge case coverage | Boundary conditions, empty inputs, error paths | LLM-as-judge |
+| Contract verification | API contracts, invariants, pre/post conditions | LLM-as-judge |
+
+Spec coverage is fundamentally a semantic judgment (does `test_user_creation` actually verify the "users can register with email" requirement?) and cannot be reliably measured by keyword matching or script-based heuristics. See `docs/design-test-quality-metrics.md` for full analysis.
 
 #### 4.2.2 Type Safety & Static Analysis
 

@@ -68,18 +68,13 @@ For test-driven implementation, the most important question is: **do the tests f
 | **Structured requirements** | Require spec to use tagged requirements (`REQ-001`), tests to reference them | Precise, fast, auditable | Requires spec format discipline |
 | **Hybrid: extract then match** | Use LLM once to extract requirements from spec into structured format, then do deterministic matching each iteration | Intent-aware extraction, fast iteration measurement | One-time LLM cost, simpler matching |
 
-**Resolution: Hybrid approach.**
+**Resolution: Spec coverage is out of scope for the script-based TQS metric.**
 
-1. **Spec parsing step** (once per run): Parse the design spec to extract a structured list of requirements/behaviors. Support two modes:
-   - **Structured spec**: Spec already has numbered requirements, bullet points, or section headers -- extract directly via parsing
-   - **Freeform spec**: Use regex/heuristics to extract requirement-like sentences (LLM extraction as future enhancement)
-2. **Test matching step** (each iteration): For each extracted requirement, check if a corresponding test exists by:
-   - Test function name contains requirement keywords
-   - Test docstring references the requirement ID or description
-   - Coverage data shows the relevant code path is exercised
-3. **Score**: `spec_coverage = matched_requirements / total_requirements x 100`
+Evaluating whether tests fully specify a design is fundamentally a **semantic judgment** -- it requires understanding intent, not just matching keywords. A test named `test_add` doesn't tell you whether it adequately specifies the addition behavior described in a design doc. Keyword matching produces false positives (name overlap without semantic coverage) and false negatives (tests that cover a requirement using different terminology).
 
-This gives us the TDD signal -- "what % of the design spec has tests?" -- without per-iteration LLM cost.
+**LLM-as-judge is the right tool for this.** It can read the design spec and the test suite, understand what each test actually verifies, and judge whether the spec's requirements are adequately covered. This belongs in a separate **LLM-as-judge evaluation step** (see Section 4.2.6 of the main design doc), not in the deterministic script-based metric adapter.
+
+The script-based TQS focuses on what scripts can reliably measure: coverage, function gaps, assertion quality, and mutation testing. Spec-to-test traceability will be handled by a future LLM-as-judge workflow that can be composed with TQS as a constraint or run as a separate evaluation pass.
 
 ### Per-File Decomposition
 
@@ -95,24 +90,25 @@ Test-to-source mapping uses **convention-based matching with coverage-based fall
 
 ### Composite Metric
 
-TQS is a **0-100 score** combining five sub-metrics:
+TQS is a **0-100 score** combining four script-based sub-metrics:
 
 | Sub-metric | Default Weight | Source | Speed |
 |---|---|---|---|
-| **Coverage score** | 25% | `coverage.py` / `pytest-cov` (line + branch) | Fast |
-| **Function coverage gaps** | 15% | AST analysis + coverage data | Fast |
-| **Assertion quality score** | 20% | AST analysis of test files | Very fast |
-| **Spec coverage score** | 25% | Spec parsing + test matching | Fast (after initial parse) |
-| **Mutation score** | 15% | `mutmut` (sampled) | Slow |
+| **Coverage score** | 30% | `coverage.py` / `pytest-cov` (line + branch) | Fast |
+| **Function coverage gaps** | 20% | AST analysis + coverage data | Fast |
+| **Assertion quality score** | 30% | AST analysis of test files | Very fast |
+| **Mutation score** | 20% | `mutmut` (sampled) | Slow |
 
-When a sub-metric is disabled (mutation testing off, or no spec file provided), its weight redistributes proportionally among the remaining active sub-metrics.
+When mutation testing is disabled (default), its weight redistributes proportionally among the other three.
 
 ```
 TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
-    + w_spec x spec_coverage + w_mut x mutation_score
+    + w_mut x mutation_score
 ```
 
-**Weight redistribution example:** If both mutation and spec are disabled, only coverage (25%), function gaps (15%), and assertion quality (20%) remain. Normalized: coverage=41.7%, function gaps=25%, assertion quality=33.3%.
+**Weight redistribution example:** With mutation disabled, the remaining weights normalize to: coverage=37.5%, function gaps=25%, assertion quality=37.5%.
+
+**Note:** Spec-to-test coverage (whether tests fully specify a design doc) is intentionally excluded from TQS. It requires semantic judgment that scripts cannot reliably perform and will be handled by a separate LLM-as-judge evaluation (see "Out of Scope" section below).
 
 ### Sub-metric Definitions
 
@@ -140,20 +136,7 @@ TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
 - Files with no test file -> score 0
 - Rationale: Catches the "coverage without verification" problem without mutation testing overhead
 
-**4. Spec Coverage Score (0-100):**
-- **Input**: Design spec file path passed via `spec_file` adapter parameter (markdown, text, or structured YAML)
-- **Extraction** (once per run): Parse spec into list of requirements
-  - Structured: extract bullet points, numbered items, section headers
-  - Each requirement gets: `{id, description, keywords[]}`
-- **Matching** (each iteration): For each requirement, check if a test covers it:
-  - Test function name contains requirement keywords
-  - Test docstring references the requirement ID or description
-  - Coverage data shows the relevant code path is exercised
-- Score = `(matched_requirements / total_requirements) x 100`
-- When no spec file is provided: sub-metric is excluded, weights redistribute
-- Rationale: This is the TDD dimension -- "do tests specify the design?" -- which no traditional metric captures
-
-**5. Mutation Score (0-100, optional):**
+**4. Mutation Score (0-100, optional):**
 - Run `mutmut` on sampled files (configurable sample size, default top-5 by coverage gap)
 - Score = `(killed_mutants / total_mutants) x 100`
 - Default: disabled (`mutation_weight=0.0`) -- too slow for most iterative loops
@@ -163,6 +146,21 @@ TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
 ### Direction
 
 `Direction.MAXIMIZE` -- higher TQS is better.
+
+---
+
+## Out of Scope: Spec Coverage (LLM-as-Judge)
+
+**Spec-to-test traceability** -- measuring whether tests fully specify a design document -- is explicitly out of scope for the script-based TQS metric.
+
+**Why:** Evaluating whether a test adequately covers a design requirement is a semantic judgment. A test named `test_user_creation` might or might not verify the "users can register with email and password" requirement from a spec. Keyword matching produces unreliable results (false positives from name overlap, false negatives from different terminology). Only an LLM can read both the spec and the test and judge whether the intent is covered.
+
+**Where it belongs:** This will be implemented as a separate **LLM-as-judge evaluation** workflow (see main design doc Section 4.2.6). It can be:
+- Run as a standalone evaluation pass after TQS-driven test improvement
+- Composed as a constraint metric alongside TQS in a multi-metric workflow
+- Used in the test-as-spec implementation loop where the agent writes tests against a design doc
+
+**Interaction with TQS:** The script-based TQS ensures tests are structurally sound (good coverage, meaningful assertions, mutation-resilient). The LLM-as-judge spec coverage ensures tests are semantically complete (all design requirements are verified). Together they form the full test quality picture, but they are measured by fundamentally different mechanisms.
 
 ---
 
@@ -189,22 +187,19 @@ class TestQualityAdapter(BaseMetricAdapter):
     supported_languages = ["python"]
 
     # Constructor params:
-    #   coverage_weight: float = 0.25
-    #   func_coverage_weight: float = 0.15
-    #   assertion_weight: float = 0.20
-    #   spec_weight: float = 0.25
-    #   mutation_weight: float = 0.15  (0.0 to disable)
+    #   coverage_weight: float = 0.30
+    #   func_coverage_weight: float = 0.20
+    #   assertion_weight: float = 0.30
+    #   mutation_weight: float = 0.20  (0.0 to disable)
     #   mutation_sample_size: int = 5
     #   test_command: str = "pytest"
     #   test_dir_pattern: str = "tests/"
-    #   spec_file: str | None = None  (path to design spec)
     #   branch_coverage: bool = True
 
     def check_prerequisites(self, repo_path):
         # Verify pytest, coverage.py installed
         # Verify target has .py files
         # If mutation_weight > 0, verify mutmut installed
-        # If spec_file set, verify file exists
 
     def measure(self, repo_path, target_path):
         # 1. Run pytest --cov -> parse coverage JSON
@@ -212,11 +207,10 @@ class TestQualityAdapter(BaseMetricAdapter):
         # 3. Cross-ref functions with coverage for gap detection
         # 4. Map test files to source files (convention + fallback)
         # 5. AST-analyze test files for assertion quality
-        # 6. If spec_file: parse spec -> match requirements to tests
-        # 7. If mutation_weight > 0: run sampled mutmut
-        # 8. Compute per-file TQS with active weight redistribution
-        # 9. Aggregate into overall TQS
-        # 10. Return MetricResult(
+        # 6. If mutation_weight > 0: run sampled mutmut
+        # 7. Compute per-file TQS with active weight redistribution
+        # 8. Aggregate into overall TQS
+        # 9. Return MetricResult(
         #       metric_name="test_quality_score",
         #       value=aggregate_tqs,
         #       unit="score",
@@ -263,26 +257,6 @@ _map_tests_to_sources(target_path, test_dir) -> dict[str, list[str]]:
     # Phase 2: Coverage-based fallback for unmatched files
     # Return {source_file: [test_files]}
 
-# --- Spec parsing ---
-@dataclass
-class Requirement:
-    id: str           # "REQ-001" or auto-generated "req_1"
-    description: str  # the requirement text
-    keywords: list[str]  # extracted keywords for matching
-
-_parse_spec_requirements(spec_file) -> list[Requirement]:
-    # Parse markdown: extract bullet points, numbered items, headers
-    # For each, extract keywords (nouns, verbs, key phrases)
-    # Return structured requirement list
-
-# --- Spec-to-test matching ---
-_match_requirements_to_tests(requirements, test_files, coverage_data) -> dict[str, bool]:
-    # For each requirement:
-    #   1. Check test function names for keyword matches
-    #   2. Check test docstrings for requirement ID/description matches
-    #   3. Optionally check coverage data for code path exercise
-    # Return {requirement_id: is_covered}
-
 # --- Weight redistribution ---
 _compute_active_weights(weights_dict, active_metrics) -> dict[str, float]:
     # Filter to active metrics, normalize so sum = 1.0
@@ -294,7 +268,7 @@ _compute_active_weights(weights_dict, active_metrics) -> dict[str, float]:
 ```yaml
 name: test_quality
 version: "1.0"
-description: "Improve test quality through iterative test-driven implementation"
+description: "Improve test suite quality through iterative test generation and enhancement"
 adapter: test_quality
 
 primary_metric:
@@ -321,13 +295,13 @@ scope:
 agent:
   skill: "improve-test-quality"
   system_prompt_addendum: |
-    You are writing tests for a test-driven implementation. For each target file:
-    1. Review the design spec requirements that lack test coverage
-    2. Write tests that specify the required behavior BEFORE implementation
+    You are improving test quality. For each target file:
+    1. If no tests exist, write comprehensive tests covering all public functions
+    2. If tests exist but lack assertions, add meaningful strong assertions
     3. Each test should have 2-3 strong assertions (assertEqual, specific value checks)
     4. Cover edge cases, error paths, and boundary values
-    5. Name tests descriptively to reflect the spec requirement they verify
-    6. Include docstrings referencing the spec requirement being tested
+    5. Prefer testing behavior over implementation details
+    6. Name tests descriptively to reflect the behavior they verify
 ```
 
 ### Registry Update
@@ -349,25 +323,20 @@ _ADAPTER_REGISTRY = {
 1. **Unit tests** (mocked data):
    - Assertion analysis: test classification of strong/weak/structural
    - Function gap detection: verify uncovered functions found correctly
-   - Spec parsing: test extraction from markdown with bullet points, numbered lists, headers
-   - Spec matching: test keyword/docstring-based requirement matching
    - Score computation: verify weighted composite calculation, weight redistribution
    - File mapping: convention-based + fallback logic
 
 2. **Integration test**:
-   - Create a small test project with known gaps (missing tests, empty assertions, unmatched spec items)
+   - Create a small test project with known gaps (missing tests, empty assertions)
    - Run adapter, verify TQS reflects the known quality level
    - Verify per-file breakdown ranks files correctly
 
 3. **CLI smoke test**:
    - `autoforge run test_quality --path ./src --target 80`
-   - `autoforge run test_quality --path ./src --target 80 --spec-file design.md`
    - `autoforge health --path ./src`
 
 4. **Edge cases**:
    - No tests exist at all -> TQS near 0
    - 100% coverage but no assertions -> TQS penalized by assertion quality score
-   - No spec file provided -> spec sub-metric excluded, weights redistribute
-   - All spec requirements matched -> spec score = 100
-   - Empty spec file -> spec sub-metric excluded gracefully
+   - Mutation testing disabled -> weights redistribute across remaining three
    - Test files that don't map to any source file -> excluded from scoring
