@@ -53,3 +53,10 @@ pytest
 2. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
 3. Register in `src/autoforge/registry.py`
 4. Create a workflow YAML in `src/autoforge/workflows/`
+
+## Documentation Maintenance
+
+Always update the following files to keep them in sync with the current state of the system:
+
+- **README.md** — Update whenever features, CLI options, architecture, project structure, or workflows change. The README is the public-facing documentation and must accurately reflect the current capabilities.
+- **progress.md** — Update to reflect the current development progress, completed milestones, and next steps. This file tracks what has been built and what remains.
