@@ -100,6 +100,7 @@ Run all (or specified) metric adapters and produce a health dashboard.
 | Flag | Description |
 |---|---|
 | `--path, -p` | Target path to analyze |
+| `--repo, -r` | Repository root (default: `.`) |
 | `--adapters` | Comma-separated adapter names |
 | `--format, -f` | Output format: `text` or `json` |
 | `--output, -o` | Save output to file |
