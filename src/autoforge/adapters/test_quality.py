@@ -289,9 +289,8 @@ def find_uncovered_functions(
     A function is "tested" if any line in its range [start_line, end_line] is covered.
     """
     if not functions:
-        file_path = functions[0].file_path if functions else ""
         return FunctionCoverageResult(
-            file_path=file_path,
+            file_path="",
             total_public_functions=0,
             tested_functions=(),
             untested_functions=(),
