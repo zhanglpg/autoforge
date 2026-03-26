@@ -1,0 +1,48 @@
+# AutoForge Workflow: Test Quality Improvement
+#
+# Uses AST analysis and coverage measurement to compute a Test Quality Score
+# (TQS) and iteratively improves test suites. Combines coverage, function
+# gap analysis, assertion quality, and optional mutation testing.
+
+name: test_quality
+version: "1.0"
+description: "Improve test suite quality through iterative test generation and enhancement"
+adapter: test_quality
+
+language_support:
+  python:
+    metric_tool: pytest-cov
+    metric_command: "python -m pytest --cov={target_path} --cov-report=json --cov-branch"
+    metric_parser: "coverage_json"
+
+primary_metric:
+  name: test_quality_score
+  direction: maximize
+  default_target: 80.0
+
+constraint_metrics:
+  - name: test_suite_pass
+    tolerance_percent: 0
+    direction: maximize
+
+budget:
+  max_iterations: 15
+  max_tokens: 500000
+  max_wall_clock_minutes: 45
+  stall_patience: 3
+  min_improvement_percent: 2.0
+  max_files_per_iteration: 5
+
+scope:
+  priority: worst_first
+
+agent:
+  skill: "improve-test-quality"
+  system_prompt_addendum: |
+    You are improving test quality. For each target file:
+    1. If no tests exist, write comprehensive tests covering all public functions
+    2. If tests exist but lack assertions, add meaningful strong assertions
+    3. Each test should have 2-3 strong assertions (assertEqual, specific value checks)
+    4. Cover edge cases, error paths, and boundary values
+    5. Prefer testing behavior over implementation details
+    6. Name tests descriptively to reflect the behavior they verify
