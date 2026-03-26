@@ -14,6 +14,7 @@ import yaml
 
 from autoforge.adapters.base import BaseMetricAdapter
 from autoforge.adapters.complexity import ComplexityAdapter
+from autoforge.adapters.test_quality import TestQualityAdapter
 from autoforge.models import WorkflowConfig
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Built-in adapter registry
 _ADAPTER_REGISTRY: dict[str, type[BaseMetricAdapter]] = {
     "complexity": ComplexityAdapter,
+    "test_quality": TestQualityAdapter,
 }
 
 # Built-in workflow directory
