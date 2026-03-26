@@ -1,6 +1,6 @@
 # AutoForge Implementation Progress
 
-*Last updated: 2026-03-25 (Phase 0 closed)*
+*Last updated: 2026-03-26*
 
 Tracks implementation status against the [design doc](design.md) roadmap.
 
@@ -134,3 +134,4 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 3. ~~**Update design doc Section 3.1**~~ Done. Merged "Tool Adapters" into "Metric Adapters."
 4. ~~**Close Phase 0**~~ Done. Phase 0 is complete.
 5. **Begin Phase 1 (Test Quality & Test-as-Spec)** — Next milestone.
+6. ~~**Remove TQS data model design doc**~~ Done. `docs/design-tqs-data-models-api.md` removed after implementation.
