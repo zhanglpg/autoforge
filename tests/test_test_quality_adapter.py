@@ -1082,6 +1082,32 @@ class TestAnalyzeAllFiles:
             assert results[lonely_path].assertion_quality_score == 0.0
             assert results[lonely_path].assertion_quality is None
 
+    def test_relative_coverage_paths_match_absolute_source_files(self):
+        """Coverage JSON reports relative paths; source files are absolute. They must match."""
+        adapter = TestQualityAdapter(mutation_weight=0.0)
+        with tempfile.TemporaryDirectory() as base:
+            src, tests = self._create_project(base)
+
+            # Coverage data keyed by *relative* path (as coverage.json would report)
+            rel_path = os.path.relpath(os.path.join(src, "calc.py"), base)
+            cov_data = {
+                rel_path: FileCoverageData(
+                    file_path=rel_path,
+                    line_coverage_pct=80.0,
+                    branch_coverage_pct=50.0,
+                    covered_lines=frozenset({1, 2, 4, 5}),
+                    missing_lines=frozenset(),
+                    covered_branches=1,
+                    total_branches=2,
+                ),
+            }
+
+            results = adapter._analyze_all_files(base, src, cov_data)
+            calc_path = os.path.join(src, "calc.py")
+            assert calc_path in results
+            # Coverage should have been matched (score > 0 proves the lookup worked)
+            assert results[calc_path].coverage_score > 0
+
     def test_excludes_test_files_from_source(self):
         adapter = TestQualityAdapter(mutation_weight=0.0)
         with tempfile.TemporaryDirectory() as base:
