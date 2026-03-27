@@ -1,7 +1,8 @@
 # AutoForge
 
-Autonomous metric-driven agentic coding framework. Generalizes the pattern:
-**measure -> agent acts -> re-measure -> iterate until target met**.
+Metric-driven coding tools for AI agents. AutoForge provides measurement CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools to drive iterative code improvement.
+
+**AutoForge is not an agent** — it's a toolkit. The agent drives the workflow; AutoForge provides the measurement infrastructure.
 
 ## Project Structure
 
@@ -10,7 +11,7 @@ src/autoforge/                          # Core framework
 ├── __init__.py                         # Package version
 ├── __main__.py                         # CLI entry point
 ├── models.py                           # Core data models
-├── runner.py                           # Workflow runner (measure-act-validate loop)
+├── runner.py                           # Workflow runner (legacy autonomous mode)
 ├── skill.py                            # Skill description generator
 ├── budget.py                           # Budget manager
 ├── git_manager.py                      # Git operations
@@ -33,10 +34,7 @@ packages/                               # Adapter packages (separate install)
 ## Key Commands
 
 ```bash
-# Autonomous mode (AutoForge drives the loop)
-autoforge run complexity_refactor --path ./src --target 3.0
-
-# Skill mode (agent-driven — measurement tools for AI agents)
+# Tool mode (recommended — agent calls these as tools)
 autoforge measure complexity --path ./src --format json
 autoforge targets complexity --path ./src -n 5
 autoforge skill-info complexity_refactor --path ./src --target 3.0
@@ -44,6 +42,9 @@ autoforge skill-info complexity_refactor --path ./src --target 3.0
 # Health & discovery
 autoforge health --path ./src
 autoforge list
+
+# Autonomous mode (legacy — AutoForge drives the loop)
+autoforge run complexity_refactor --path ./src --target 3.0
 ```
 
 ## Development
@@ -57,18 +58,23 @@ pytest
 
 ## Architecture
 
-Two execution modes:
-- **Autonomous Mode**: `WorkflowRunner` owns the loop, spawns agent as subprocess
-- **Skill Mode** (recommended): AI agent drives the workflow, calls `autoforge measure`/`targets` as tools
+AutoForge provides measurement tools that AI agents call during their workflows:
+- **`autoforge measure`** — runs a metric adapter, returns structured JSON
+- **`autoforge targets`** — identifies worst files for a metric
+- **`autoforge skill-info`** — generates skill descriptions from workflow configs
+
+The agent maintains full context across iterations, manages git, runs tests, and reasons about strategy. AutoForge handles metric collection and normalization.
+
+Legacy autonomous mode (`autoforge run`) spawns the agent as a subprocess each iteration, with mechanical budget/git/regression enforcement.
 
 Core components:
 - **MetricAdapter**: Protocol for plugging in measurement tools
 - **WorkflowConfig**: YAML-defined workflow with metrics, budget, constraints
-- **WorkflowRunner**: Executes the iteration loop with budget/regression guards (autonomous mode)
-- **SkillGenerator**: Produces skill descriptions from workflow configs (skill mode)
-- **BudgetManager**: Enforces hard limits, detects improvement stalls
-- **GitManager**: Creates branches, commits per iteration, supports rollback
-- **RegressionGuard**: Runs tests between iterations, checks constraints
+- **SkillGenerator**: Produces skill descriptions from workflow configs
+- **WorkflowRunner**: Executes the iteration loop (legacy autonomous mode)
+- **BudgetManager**: Enforces hard limits, detects improvement stalls (autonomous mode; communicated to agents via skill descriptions)
+- **GitManager**: Creates branches, commits per iteration, supports rollback (autonomous mode)
+- **RegressionGuard**: Runs tests between iterations, checks constraints (autonomous mode)
 
 ## Adding a New Adapter
 
@@ -77,6 +83,8 @@ Core components:
 3. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
 4. Register via entry point: `[project.entry-points."autoforge.adapters"]`
 5. Create a workflow YAML in `src/autoforge/workflows/`
+
+Once registered, agents can immediately use `autoforge measure <name>` and `autoforge targets <name>` as tools.
 
 ## Documentation Maintenance
 

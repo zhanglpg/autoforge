@@ -1,8 +1,7 @@
 # AutoForge Workflow: Complexity Refactoring
 #
 # Uses complexity-accounting to measure Net Complexity Score (NCS) and
-# iteratively refactors code to reduce it. This is the original proven
-# workflow from agentic-coding-skills.
+# iteratively refactors code to reduce it.
 
 name: complexity_refactor
 version: "1.0"

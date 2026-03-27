@@ -1,19 +1,19 @@
 # AutoForge Implementation Progress
 
-*Last updated: 2026-03-26*
+*Last updated: 2026-03-27*
 
 Tracks implementation status against the [design doc](design.md) roadmap.
 
 ## Phase 0: Foundation — Status: Complete
 
-**Goal:** Extract the proven pattern into a reusable framework.
+**Goal:** Extract the proven pattern into reusable measurement tools for AI agents.
 
 | Deliverable | Status | Notes |
 |------------|--------|-------|
 | Standard metric adapter interface | Done | `models.py` MetricAdapter protocol + `adapters/base.py` ABC |
 | Workflow configuration schema (YAML) | Done | `models.py` WorkflowConfig with full parsing/validation |
-| CLI driver skeleton | Done | `__main__.py` — `run`, `health`, `list` commands |
-| Iteration loop | Done | `runner.py` — measure -> act -> validate loop |
+| CLI measurement tools | Done | `__main__.py` — `measure`, `targets`, `skill-info`, `health`, `list` commands |
+| Autonomous runner (legacy) | Done | `runner.py` — measure -> act -> validate loop via subprocess |
 | Budget enforcement | Done | `budget.py` — iterations, tokens, wall-clock, stall detection |
 | Git management | Done | `git_manager.py` — branch, commit, rollback per iteration |
 | Wrap complexity-accounting as first adapter | Done | `adapters/complexity.py` — NCS measurement |
@@ -28,11 +28,11 @@ Tracks implementation status against the [design doc](design.md) roadmap.
 
 ### Phase 0 Verdict
 
-Phase 0 is complete. The core loop works end-to-end with budget enforcement, regression guards, constraint checking, and best-effort token tracking. Two minor gaps remain (lint validation, max files enforcement) which are deferred to Phase 2 and are documented in the deviations section below.
+Phase 0 is complete. The CLI tools work end-to-end — agents can call `autoforge measure` and `autoforge targets` as tools. The autonomous runner provides backward compatibility. Two minor gaps remain (lint validation, max files enforcement) which are deferred to Phase 2.
 
 ## Phase 1: Test Quality & Test-as-Spec — Status: Complete
 
-**Goal:** Add a test quality metric adapter with composite TQS scoring.
+**Goal:** Add a test quality metric adapter with composite TQS scoring, usable via `autoforge measure test_quality`.
 
 | Deliverable | Status | Notes |
 |------------|--------|-------|
@@ -54,10 +54,10 @@ Phase 0 is complete. The core loop works end-to-end with budget enforcement, reg
 
 ### Phase 1 Verdict
 
-Phase 1 is complete. The TQS adapter faithfully implements the design in `docs/design-test-quality-metrics.md`:
+Phase 1 is complete. Agents can call `autoforge measure test_quality` and `autoforge targets test_quality` as tools. The TQS adapter faithfully implements the design in `docs/design-test-quality-metrics.md`:
 - 4 sub-metrics with configurable weights and automatic redistribution
-- Full orchestration pipeline: coverage collection → AST analysis → assertion quality → optional mutation → aggregation
-- Assertion quality metric redesigned: measures fraction of test functions with ≥1 meaningful (strong/structural) assertion. Code-path coverage is left to the coverage sub-metrics; assertion count is deliberately ignored to prevent gaming by assertion spam
+- Full pipeline: coverage collection → AST analysis → assertion quality → optional mutation → aggregation
+- Assertion quality metric measures fraction of test functions with ≥1 meaningful assertion
 - 316 tests (37 new orchestration/edge-case tests added), all passing
 - Spec coverage (LLM-as-judge) intentionally deferred per design doc — belongs in Phase 3
 
@@ -106,67 +106,59 @@ Health dashboard reporting exists (`reporting.py`), but LLM-as-Judge and sandbox
 
 **Implementation:** CLI directly instantiates WorkflowRunner. No orchestrator.
 
-**Verdict:** Fine for now. The Orchestrator is needed for composite workflows (Phase 3+). No correction needed yet, but should be introduced before multi-workflow support.
+**Verdict:** Fine for now. With the tool architecture, the AI agent effectively serves as the orchestrator — it selects workflows, manages iterations, and can chain multiple `autoforge measure` calls. A programmatic orchestrator may be needed for CI pipelines running autonomous mode.
 
 ### 2. No multi-agent parallel execution
 
-**Design (Section 3.3):** Multiple Claude Code instances on separate branches running in parallel, with merge on completion.
+**Design (Section 3.2 legacy):** Multiple Claude Code instances on separate branches running in parallel, with merge on completion.
 
 **Implementation:** Single sequential workflow execution.
 
-**Verdict:** Correct sequencing. This is Phase 4 scope. Design is aspirational here and doesn't need correction.
+**Verdict:** With the tool architecture, parallel execution is the agent's responsibility. An agent can naturally run multiple measurement commands. This is Phase 4 scope.
 
 ### ~~3. Tool Adapters merged into Metric Adapters~~ (Fixed)
 
 **Design (Section 3.1):** Originally specified separate "Metric Adapters" and "Tool Adapters" as distinct components.
 
-**Status:** Fixed. Design doc Section 3.1 updated to show a single "Metric Adapters" component that handles both tool invocation and output normalization, matching the implementation.
+**Status:** Fixed. Design doc updated to show a single "Metric Adapters" component.
 
 ### 4. ~~Constraint metrics not checked during iteration~~ (Fixed)
 
-**Design (Section 5.2):** Regression guard checks that constraint metrics haven't degraded beyond tolerance.
-
-**Status:** Fixed. Runner now measures constraint baselines at startup via `_set_constraint_baselines()` and passes adapter/tolerance info to `validate_iteration()`, which calls `check_constraints()` when baselines are present.
+**Status:** Fixed. Runner now measures constraint baselines at startup and checks them during validation.
 
 ### 5. Lint/type error validation missing
 
-**Design (Section 3.2):** Regression guard "validates no new lint/type errors introduced."
+**Design (Section 3.3):** Regression guard "validates no new lint/type errors introduced."
 
 **Implementation:** Not implemented.
 
-**Verdict:** Defer to Phase 2 (Type Safety). Not critical for Phase 0 since the complexity workflow doesn't need it. But should be noted as a gap.
+**Verdict:** Defer to Phase 2 (Type Safety). In tool mode, agents can run lint/type checks natively. Only needed for autonomous mode enforcement.
 
 ### ~~6. Token tracking is a no-op~~ (Fixed — best-effort)
 
-**Design (Sections 3.2, 3.3):** Budget manager tracks token spend for cost control.
-
-**Status:** Fixed. Runner now uses `--output-format json` and parses Claude Code output for token counts via `_parse_token_usage()`. Tries JSON `usage` field first, then regex on stderr. Falls back to 0 if unavailable. Token counts are passed to `budget.record_iteration(tokens=...)` and stored on `IterationRecord.tokens_used`.
-
-**Limitation:** Token tracking is best-effort. Claude Code does not guarantee structured token reporting in all modes. The budget enforcement for tokens will only trigger if the agent output includes parseable token counts.
+**Status:** Fixed. Runner parses Claude Code output for token counts. Best-effort — falls back to 0 if unavailable.
 
 ### 7. Max files per iteration not enforced
 
-**Design (Section 5.4):** "Max files per iteration (default: 5)."
+**Design (Section 5.5):** "Max files per iteration (default: 5)."
 
-**Implementation:** `BudgetConfig.max_files_per_iteration` exists and is passed to `identify_targets()` to limit scope hints to the agent, but there's no post-hoc enforcement (the agent could still modify more files).
+**Implementation:** `BudgetConfig.max_files_per_iteration` limits scope hints via `identify_targets()` and is communicated in skill descriptions. No post-hoc enforcement.
 
-**Verdict: Acceptable.** The agent is given scoped targets; hard enforcement would require rejecting iterations that touch too many files, which may cause more harm than good. Consider adding a warning rather than a hard block.
+**Verdict:** Acceptable. In tool mode, the agent receives scoped targets via `autoforge targets -n 5`. In autonomous mode, hard enforcement would require rejecting iterations that touch too many files.
 
 ### 8. Health dashboard thresholds are hardcoded
 
-**Design:** Doesn't specify.
+**Implementation:** `_health_status()` uses hardcoded thresholds.
 
-**Implementation:** `_health_status()` in `reporting.py` uses hardcoded thresholds (e.g., NCS <= 3 = Healthy).
-
-**Verdict:** Fine for now. Should become configurable when more adapters are added, but not urgent.
+**Verdict:** Fine for now. Should become configurable when more adapters are added.
 
 ## Recommended Next Actions
 
 1. ~~**Wire up constraint checking in runner**~~ Done.
-2. ~~**Add token usage logging (best-effort)**~~ Done. Runner parses Claude Code JSON/stderr output for tokens.
-3. ~~**Update design doc Section 3.1**~~ Done. Merged "Tool Adapters" into "Metric Adapters."
-4. ~~**Close Phase 0**~~ Done. Phase 0 is complete.
-5. ~~**Begin Phase 1 (Test Quality & Test-as-Spec)**~~ Done. TQS adapter, workflow, tests all complete.
-6. ~~**Remove TQS data model design doc**~~ Done. `docs/design-tqs-data-models-api.md` removed after implementation.
-7. ~~**Document agent integration in README**~~ Done. Added Prerequisites section (Claude Code requirement), Agent Integration section (subprocess model, custom agents, workflow YAML config), and updated Architecture descriptions.
+2. ~~**Add token usage logging (best-effort)**~~ Done.
+3. ~~**Update design doc Section 3.1**~~ Done.
+4. ~~**Close Phase 0**~~ Done.
+5. ~~**Begin Phase 1 (Test Quality & Test-as-Spec)**~~ Done.
+6. ~~**Remove TQS data model design doc**~~ Done.
+7. ~~**Document tool architecture in README**~~ Done. README reframed around tool/skill model.
 8. **Begin Phase 2 (Type Safety + Security)** — Next milestone.

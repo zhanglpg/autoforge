@@ -1,9 +1,10 @@
 """
-Workflow Runner for AutoForge.
+Workflow Runner for AutoForge (legacy autonomous mode).
 
-Executes the core measure -> act -> validate iteration loop.
-The runner is the "thin driver" that manages the loop lifecycle while
-delegating actual code intelligence to Claude Code agent instances.
+Executes the core measure -> act -> validate iteration loop by spawning
+the agent as a subprocess each iteration. This is the legacy autonomous mode;
+the recommended approach is for AI agents to call `autoforge measure` and
+`autoforge targets` as tools directly (see skill.py).
 """
 
 from __future__ import annotations
