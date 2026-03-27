@@ -131,120 +131,16 @@ class WorkflowRunner:
             # Main iteration loop
             current = baseline
             while True:
-                # Budget check
-                try:
-                    self.budget.check_budget()
-                except BudgetExhausted as e:
-                    logger.warning("Budget exhausted: %s", e.reason)
-                    self.report.outcome = RunOutcome.BUDGET_EXHAUSTED
-                    self.report.error = e.reason
+                stop = self._check_loop_termination()
+                if stop:
                     break
 
-                # Stall check
-                if self.budget.check_stall():
-                    self.report.outcome = RunOutcome.STALLED
-                    self.report.error = (
-                        f"Improvement stalled for {self.config.budget.stall_patience} "
-                        f"consecutive iterations"
-                    )
+                current = self._run_iteration(current)
+
+                if self._target_met(current):
+                    logger.info("Target met!")
+                    self.report.outcome = RunOutcome.TARGET_MET
                     break
-
-                iteration_num = self.budget.iterations_used + 1
-                logger.info("=== Iteration %d ===", iteration_num)
-
-                iter_start = time.monotonic()
-                record = IterationRecord(n=iteration_num, metric_before=current.value, metric_after=current.value)
-
-                try:
-                    # ACT: Run the agent
-                    iter_tokens = 0
-                    if not self.dry_run:
-                        iter_tokens = self._run_agent(current, iteration_num)
-                    record.tokens_used = iter_tokens
-
-                    # MEASURE: Re-measure after agent action
-                    after = self._measure(f"iteration {iteration_num}")
-                    record.metric_after = after.value
-
-                    # Get modified files
-                    if self.git:
-                        record.files_modified = self.git.get_modified_files()
-
-                    # VALIDATE: Regression guard (tests + constraint metrics)
-                    if not self.skip_tests:
-                        passed, issues = self.guard.validate_iteration(
-                            run_tests=True,
-                            adapter=self.adapter,
-                            repo_path=self.repo_path,
-                            target_path=self.target_path,
-                            tolerance_map=self._build_tolerance_map(),
-                        )
-                        if not passed:
-                            record.constraint_violations = issues
-                            logger.warning(
-                                "Iteration %d failed validation: %s",
-                                iteration_num,
-                                issues,
-                            )
-                            # Rollback this iteration
-                            if self.git:
-                                self.git.rollback_iteration()
-                            record.error = "; ".join(issues)
-                            # Still count as an iteration for budget
-                            record.duration_seconds = time.monotonic() - iter_start
-                            self.report.iterations.append(record)
-                            self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
-                            continue
-
-                    # Commit this iteration
-                    if self.git:
-                        sha = self.git.commit_iteration(
-                            self.config.name,
-                            iteration_num,
-                            current.value,
-                            after.value,
-                        )
-                        record.commit_sha = sha
-
-                    # Calculate improvement
-                    if current.value != 0:
-                        improvement_pct = abs(after.value - current.value) / abs(current.value) * 100
-                    else:
-                        improvement_pct = 100.0 if after.value != current.value else 0.0
-
-                    record.duration_seconds = time.monotonic() - iter_start
-                    self.report.iterations.append(record)
-                    self.budget.record_iteration(tokens=iter_tokens, improvement_pct=improvement_pct)
-
-                    logger.info(
-                        "Iteration %d: %.2f -> %.2f (%.1f%% improvement)",
-                        iteration_num,
-                        current.value,
-                        after.value,
-                        improvement_pct,
-                    )
-
-                    current = after
-
-                    # Check if target met
-                    if self._target_met(current):
-                        logger.info("Target met!")
-                        self.report.outcome = RunOutcome.TARGET_MET
-                        break
-
-                except Exception as e:
-                    logger.error("Iteration %d error: %s", iteration_num, e)
-                    record.error = str(e)
-                    record.duration_seconds = time.monotonic() - iter_start
-                    self.report.iterations.append(record)
-                    self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
-
-                    # Rollback on error
-                    if self.git:
-                        try:
-                            self.git.rollback_iteration()
-                        except Exception:
-                            pass
 
             self.report.final_metric = current.value
 
@@ -255,6 +151,125 @@ class WorkflowRunner:
 
         self._finalize()
         return self.report
+
+    def _check_loop_termination(self) -> bool:
+        """Check budget and stall conditions. Returns True if the loop should stop."""
+        try:
+            self.budget.check_budget()
+        except BudgetExhausted as e:
+            logger.warning("Budget exhausted: %s", e.reason)
+            self.report.outcome = RunOutcome.BUDGET_EXHAUSTED
+            self.report.error = e.reason
+            return True
+
+        if self.budget.check_stall():
+            self.report.outcome = RunOutcome.STALLED
+            self.report.error = (
+                f"Improvement stalled for {self.config.budget.stall_patience} "
+                f"consecutive iterations"
+            )
+            return True
+
+        return False
+
+    def _run_iteration(self, current: MetricResult) -> MetricResult:
+        """Execute a single measure-act-validate iteration.
+
+        Returns the updated MetricResult (or the same one if the iteration failed).
+        """
+        iteration_num = self.budget.iterations_used + 1
+        logger.info("=== Iteration %d ===", iteration_num)
+
+        iter_start = time.monotonic()
+        record = IterationRecord(n=iteration_num, metric_before=current.value, metric_after=current.value)
+        iter_tokens = 0
+
+        try:
+            # ACT: Run the agent
+            if not self.dry_run:
+                iter_tokens = self._run_agent(current, iteration_num)
+            record.tokens_used = iter_tokens
+
+            # MEASURE: Re-measure after agent action
+            after = self._measure(f"iteration {iteration_num}")
+            record.metric_after = after.value
+
+            # Get modified files
+            if self.git:
+                record.files_modified = self.git.get_modified_files()
+
+            # VALIDATE: Regression guard (tests + constraint metrics)
+            if not self.skip_tests:
+                passed, issues = self.guard.validate_iteration(
+                    run_tests=True,
+                    adapter=self.adapter,
+                    repo_path=self.repo_path,
+                    target_path=self.target_path,
+                    tolerance_map=self._build_tolerance_map(),
+                )
+                if not passed:
+                    return self._handle_failed_validation(
+                        record, issues, iteration_num, iter_start, iter_tokens, current,
+                    )
+
+            # Commit this iteration
+            if self.git:
+                sha = self.git.commit_iteration(
+                    self.config.name, iteration_num, current.value, after.value,
+                )
+                record.commit_sha = sha
+
+            # Calculate improvement
+            improvement_pct = self._compute_improvement(current.value, after.value)
+            record.duration_seconds = time.monotonic() - iter_start
+            self.report.iterations.append(record)
+            self.budget.record_iteration(tokens=iter_tokens, improvement_pct=improvement_pct)
+
+            logger.info(
+                "Iteration %d: %.2f -> %.2f (%.1f%% improvement)",
+                iteration_num, current.value, after.value, improvement_pct,
+            )
+            return after
+
+        except Exception as e:
+            logger.error("Iteration %d error: %s", iteration_num, e)
+            record.error = str(e)
+            record.duration_seconds = time.monotonic() - iter_start
+            self.report.iterations.append(record)
+            self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
+            if self.git:
+                try:
+                    self.git.rollback_iteration()
+                except Exception:
+                    pass
+            return current
+
+    def _handle_failed_validation(
+        self,
+        record: IterationRecord,
+        issues: list[str],
+        iteration_num: int,
+        iter_start: float,
+        iter_tokens: int,
+        current: MetricResult,
+    ) -> MetricResult:
+        """Handle a failed validation by rolling back and recording the failure."""
+        record.constraint_violations = issues
+        logger.warning("Iteration %d failed validation: %s", iteration_num, issues)
+        if self.git:
+            self.git.rollback_iteration()
+        record.error = "; ".join(issues)
+        record.duration_seconds = time.monotonic() - iter_start
+        self.report.iterations.append(record)
+        self.budget.record_iteration(tokens=iter_tokens, improvement_pct=0.0)
+        return current
+
+    @staticmethod
+    def _compute_improvement(before: float, after: float) -> float:
+        """Calculate percentage improvement between two metric values."""
+        if before != 0:
+            return abs(after - before) / abs(before) * 100
+        return 100.0 if after != before else 0.0
 
     def _set_constraint_baselines(self) -> None:
         """Measure and record constraint baselines on the regression guard."""

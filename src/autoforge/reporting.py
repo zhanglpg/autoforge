@@ -174,36 +174,38 @@ def format_health_dashboard(metrics: dict[str, MetricResult]) -> str:
     return "\n".join(lines)
 
 
+# Health thresholds: list of (upper_bound, label) checked in order.
+# For MINIMIZE metrics: value <= threshold → label.
+# For MAXIMIZE metrics: value >= threshold → label (checked high-to-low).
+_NAMED_THRESHOLDS: dict[str, list[tuple[float, str]]] = {
+    "net_complexity_score": [(3, "Healthy"), (6, "Moderate"), (10, "Concerning"), (float("inf"), "Critical")],
+}
+_MINIMIZE_THRESHOLDS = [(0, "Healthy"), (5, "Moderate"), (20, "Concerning"), (float("inf"), "Critical")]
+_MAXIMIZE_THRESHOLDS = [(80, "Healthy"), (60, "Moderate"), (40, "Concerning"), (float("-inf"), "Critical")]
+
+
 def _health_status(name: str, result: MetricResult) -> str:
     """Determine health status indicator for a metric."""
-    if result.metric_name == "net_complexity_score":
-        if result.value <= 3:
-            return "Healthy"
-        elif result.value <= 6:
-            return "Moderate"
-        elif result.value <= 10:
-            return "Concerning"
-        else:
-            return "Critical"
-
+    if result.metric_name in _NAMED_THRESHOLDS:
+        return _classify_ascending(result.value, _NAMED_THRESHOLDS[result.metric_name])
     if result.direction is Direction.MAXIMIZE:
-        if result.value >= 80:
-            return "Healthy"
-        elif result.value >= 60:
-            return "Moderate"
-        elif result.value >= 40:
-            return "Concerning"
-        else:
-            return "Critical"
-
+        return _classify_descending(result.value, _MAXIMIZE_THRESHOLDS)
     if result.direction is Direction.MINIMIZE:
-        if result.value <= 0:
-            return "Healthy"
-        elif result.value <= 5:
-            return "Moderate"
-        elif result.value <= 20:
-            return "Concerning"
-        else:
-            return "Critical"
-
+        return _classify_ascending(result.value, _MINIMIZE_THRESHOLDS)
     return "Unknown"
+
+
+def _classify_ascending(value: float, thresholds: list[tuple[float, str]]) -> str:
+    """Return label for the first threshold where value <= bound."""
+    for bound, label in thresholds:
+        if value <= bound:
+            return label
+    return thresholds[-1][1]
+
+
+def _classify_descending(value: float, thresholds: list[tuple[float, str]]) -> str:
+    """Return label for the first threshold where value >= bound (high is good)."""
+    for bound, label in thresholds:
+        if value >= bound:
+            return label
+    return thresholds[-1][1]

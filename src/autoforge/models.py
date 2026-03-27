@@ -154,6 +154,14 @@ class LanguageToolConfig:
 
 
 @dataclass
+class SkillModeConfig:
+    """Configuration for skill mode — where an AI agent drives the workflow."""
+    enabled: bool = False
+    measurement_commands: dict[str, str] = field(default_factory=dict)
+    iteration_protocol: str = ""
+
+
+@dataclass
 class WorkflowConfig:
     """Complete workflow configuration, loaded from YAML."""
     name: str
@@ -167,6 +175,7 @@ class WorkflowConfig:
     budget: BudgetConfig = field(default_factory=BudgetConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     language_support: dict[str, LanguageToolConfig] = field(default_factory=dict)
+    skill_mode: SkillModeConfig = field(default_factory=SkillModeConfig)
     scope_priority: str = "worst_first"
 
     @staticmethod
@@ -229,6 +238,13 @@ class WorkflowConfig:
                 metric_parser=cfg.get("metric_parser", ""),
             )
 
+        skill_data = data.get("skill_mode", {})
+        skill_mode = SkillModeConfig(
+            enabled=skill_data.get("enabled", False),
+            measurement_commands=skill_data.get("measurement_commands", {}),
+            iteration_protocol=skill_data.get("iteration_protocol", ""),
+        )
+
         return WorkflowConfig(
             name=data.get("name", ""),
             version=data.get("version", "1.0"),
@@ -239,6 +255,7 @@ class WorkflowConfig:
             budget=budget,
             agent=agent,
             language_support=lang_support,
+            skill_mode=skill_mode,
             scope_priority=data.get("scope", {}).get("priority", "worst_first"),
         )
 

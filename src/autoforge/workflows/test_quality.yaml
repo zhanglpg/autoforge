@@ -51,3 +51,20 @@ agent:
        each as a separate test function with its own assertion
     5. Prefer testing behaviour over implementation details
     6. Name tests descriptively to reflect the behaviour they verify
+
+# Skill mode: instructions for AI agents driving this workflow directly.
+# Generate full skill description with: autoforge skill-info test_quality
+skill_mode:
+  enabled: true
+  measurement_commands:
+    measure: "autoforge measure test_quality --path {target_path} --repo {repo_path} --format json"
+    targets: "autoforge targets test_quality --path {target_path} --repo {repo_path} -n 5"
+  iteration_protocol: |
+    Each iteration:
+    1. Run `autoforge measure test_quality` to get current TQS
+    2. Run `autoforge targets test_quality` to find worst-tested files
+    3. Read the target source files to understand what needs testing
+    4. Write or improve tests — each test function needs at least one assertion
+    5. Run tests to verify they pass
+    6. Re-measure to confirm TQS improved
+    7. Commit with message: autoforge(test_quality): iteration N — TQS before -> after
