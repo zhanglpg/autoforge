@@ -21,6 +21,7 @@ from autoforge.adapters.test_quality import (
     MutationResult,
     TQSWeights,
     TestQualityAdapter,
+    _has_meaningful_assertion,
     analyze_test_file_assertions,
     classify_assertion,
     compute_assertion_quality_score,
@@ -164,25 +165,88 @@ class TestFileAssertionReport:
         assert r.weighted_score == 0.0
 
     def test_weighted_score_one_strong_per_test(self):
+        """One strong assertion → function is verified → 100%."""
         a = AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG)
         r = FileAssertionReport(
             test_file_path="t.py", test_function_count=1,
             assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
         )
-        # density = 1.0/1 = 1.0, score = min(100, 1.0 * 33.3) = 33.3
-        assert r.weighted_score == pytest.approx(33.3)
+        assert r.weighted_score == 100.0
 
-    def test_weighted_score_capped_at_100(self):
+    def test_weighted_score_structural_counts_as_verified(self):
+        """A structural assertion (assertIn, etc.) also counts as verified."""
+        a = AssertionInfo("test_x", 1, "assertIn(x, y)", AssertionStrength.STRUCTURAL)
+        r = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=(a,), strong_count=0, structural_count=1, weak_count=0,
+        )
+        assert r.weighted_score == 100.0
+
+    def test_weighted_score_weak_assertions_are_valid(self):
+        """assertTrue is valid for boolean-returning functions → 100%."""
         asserts = tuple(
-            AssertionInfo(f"test_{i}", i, "assertEqual(a, b)", AssertionStrength.STRONG)
-            for i in range(5)
+            AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
+            for i in range(3)
         )
         r = FileAssertionReport(
             test_file_path="t.py", test_function_count=1,
-            assertions=asserts, strong_count=5, structural_count=0, weak_count=0,
+            assertions=asserts, strong_count=0, structural_count=0, weak_count=3,
         )
-        # density = 5.0/1 = 5.0, score = min(100, 166.5) = 100
         assert r.weighted_score == 100.0
+
+    def test_weighted_score_no_assertions_not_verified(self):
+        """Test function with zero assertions → 0%."""
+        r = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=(), strong_count=0, structural_count=0, weak_count=0,
+        )
+        assert r.weighted_score == 0.0
+
+    def test_weighted_score_spam_cannot_game(self):
+        """Adding more assertions to an already-verified function doesn't change score."""
+        one_strong = (
+            AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG),
+        )
+        many_strong = tuple(
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(20)
+        )
+        r_one = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=one_strong, strong_count=1, structural_count=0, weak_count=0,
+        )
+        r_many = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=many_strong, strong_count=20, structural_count=0, weak_count=0,
+        )
+        assert r_one.weighted_score == r_many.weighted_score == 100.0
+
+    def test_weighted_score_partial_verification(self):
+        """2 of 4 test functions verified → 50%."""
+        asserts = (
+            AssertionInfo("test_a", 1, "assertEqual(a, b)", AssertionStrength.STRONG),
+            AssertionInfo("test_b", 2, "assertIn(x, y)", AssertionStrength.STRUCTURAL),
+            # test_c and test_d have no assertions (not in the tuple)
+        )
+        r = FileAssertionReport(
+            test_file_path="t.py", test_function_count=4,
+            assertions=asserts, strong_count=1, structural_count=1, weak_count=0,
+        )
+        assert r.weighted_score == 50.0
+
+    def test_weighted_score_empty_functions_lower_average(self):
+        """Test functions with no assertions drag down the file score."""
+        a = AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG)
+        r_one_of_one = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
+        )
+        r_one_of_two = FileAssertionReport(
+            test_file_path="t.py", test_function_count=2,
+            assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
+        )
+        assert r_one_of_one.weighted_score == 100.0
+        assert r_one_of_two.weighted_score == 50.0
 
 
 # ===========================================================================
@@ -450,6 +514,37 @@ class TestClassifyAssertion:
     def test_pytest_raises(self):
         node = self._parse_expr("pytest.raises(ValueError)")
         assert classify_assertion(node) == AssertionStrength.STRONG
+
+
+# ===========================================================================
+# _has_meaningful_assertion
+# ===========================================================================
+
+class TestHasMeaningfulAssertion:
+    """Tests for the per-function assertion verification helper."""
+
+    def test_empty_list(self):
+        assert _has_meaningful_assertion([]) is False
+
+    def test_strong_assertion_is_meaningful(self):
+        a = [AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG)]
+        assert _has_meaningful_assertion(a) is True
+
+    def test_structural_assertion_is_meaningful(self):
+        a = [AssertionInfo("test_x", 1, "assertIn(x, y)", AssertionStrength.STRUCTURAL)]
+        assert _has_meaningful_assertion(a) is True
+
+    def test_weak_assertion_is_meaningful(self):
+        """assertTrue is valid — e.g. for boolean-returning functions."""
+        a = [AssertionInfo("test_x", 1, "assertTrue(x)", AssertionStrength.WEAK)]
+        assert _has_meaningful_assertion(a) is True
+
+    def test_any_assertion_counts(self):
+        a = [
+            AssertionInfo("test_x", 1, "assertTrue(x)", AssertionStrength.WEAK),
+            AssertionInfo("test_x", 2, "assertEqual(a, b)", AssertionStrength.STRONG),
+        ]
+        assert _has_meaningful_assertion(a) is True
 
 
 # ===========================================================================

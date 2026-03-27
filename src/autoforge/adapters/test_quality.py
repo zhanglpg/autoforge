@@ -15,6 +15,7 @@ import logging
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -122,14 +123,33 @@ class FileAssertionReport:
     def weighted_score(self) -> float:
         """Assertion quality score 0-100 for this file.
 
-        Formula: min(100, weighted_density * 33.3)
-        where weighted_density = sum(weights) / test_function_count
+        Measures what fraction of test functions have at least one assertion
+        — i.e. actually verify output rather than just exercising code.
+
+        Score = (functions_with_any_assertion / test_function_count) * 100
+
+        Any assertion counts — ``assertTrue(result)`` is perfectly valid for
+        a boolean-returning function.  Code-path coverage is already captured
+        by the coverage and function-coverage sub-metrics; this sub-metric's
+        job is solely to answer *"do the tests verify anything?"*.  Counting
+        assertion quantity is deliberately avoided so the agent cannot game
+        the score by spamming assertions.
         """
         if self.test_function_count == 0:
             return 0.0
-        total_weight = sum(a.strength.weight for a in self.assertions)
-        weighted_density = total_weight / self.test_function_count
-        return min(100.0, weighted_density * 33.3)
+
+        # Group assertions by test function
+        by_func: dict[str, list[AssertionInfo]] = defaultdict(list)
+        for a in self.assertions:
+            by_func[a.test_function].append(a)
+
+        verified_count = sum(
+            1 for func_assertions in by_func.values()
+            if _has_meaningful_assertion(func_assertions)
+        )
+
+        # Functions with no assertions (not in by_func) count as unverified
+        return (verified_count / self.test_function_count) * 100.0
 
     @property
     def total_count(self) -> int:
@@ -316,6 +336,18 @@ def find_uncovered_functions(
 # Module-Level Pure Helper Functions — Assertion Analysis
 # ---------------------------------------------------------------------------
 
+
+def _has_meaningful_assertion(assertions: list[AssertionInfo]) -> bool:
+    """Return True if a test function has at least one assertion of any kind.
+
+    Any assertion — including assertTrue, assertIsNone, or bare ``assert x`` —
+    counts as verifying output.  A function returning a boolean is perfectly
+    well-tested by ``assertTrue(result)``.  The only truly unverified test
+    function is one with *zero* assertions.
+    """
+    return len(assertions) > 0
+
+
 # Strong assertions: verify specific behavior
 _STRONG_ASSERT_METHODS = frozenset({
     "assertEqual", "assertNotEqual",
@@ -459,8 +491,8 @@ def analyze_test_file_assertions(
 def compute_assertion_quality_score(report: FileAssertionReport) -> float:
     """Compute 0-100 assertion quality score from an assertion report.
 
-    Formula: min(100, weighted_density * 33.3)
-    where weighted_density = sum(weights) / test_function_count
+    Returns the fraction of test functions that have at least one assertion.
+    See ``FileAssertionReport.weighted_score``.
     """
     return report.weighted_score
 

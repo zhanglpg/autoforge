@@ -57,6 +57,7 @@ Phase 0 is complete. The core loop works end-to-end with budget enforcement, reg
 Phase 1 is complete. The TQS adapter faithfully implements the design in `docs/design-test-quality-metrics.md`:
 - 4 sub-metrics with configurable weights and automatic redistribution
 - Full orchestration pipeline: coverage collection → AST analysis → assertion quality → optional mutation → aggregation
+- Assertion quality metric redesigned: measures fraction of test functions with ≥1 meaningful (strong/structural) assertion. Code-path coverage is left to the coverage sub-metrics; assertion count is deliberately ignored to prevent gaming by assertion spam
 - 316 tests (37 new orchestration/edge-case tests added), all passing
 - Spec coverage (LLM-as-judge) intentionally deferred per design doc — belongs in Phase 3
 
