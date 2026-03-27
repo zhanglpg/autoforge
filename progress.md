@@ -4,14 +4,14 @@
 
 ### v0.1.0 — Core Framework
 - Core data models (`MetricResult`, `WorkflowConfig`, `RunReport`)
-- `WorkflowRunner` with measure-act-validate iteration loop
+- CLI tools: `measure`, `targets`, `skill-info`, `health`, `list` commands
+- `WorkflowRunner` with measure-act-validate iteration loop (autonomous mode)
 - `BudgetManager` with iteration/token/time limits and stall detection
 - `GitManager` with branch creation, per-iteration commits, rollback
 - `RegressionGuard` with test running and constraint checking
 - YAML workflow configuration system
 - Registry for adapters and workflows
 - JSON and Markdown reporting with health dashboard
-- CLI: `run`, `health`, `list` commands
 
 ### v0.1.1 — Metric Adapters
 - `ComplexityAdapter` wrapping complexity-accounting for NCS measurement
@@ -19,15 +19,15 @@
 - `complexity_refactor` workflow (minimize NCS)
 - `test_quality` workflow (maximize TQS)
 
-### v0.1.2 — Hybrid Skill Architecture
-- **Skill mode**: AI agents drive workflows directly using measurement CLI tools
-- `autoforge measure <adapter>` — standalone metric measurement with JSON output
+### v0.1.2 — Tool & Skill Architecture
+- **Tool architecture**: AutoForge provides measurement CLI tools that AI agents call during their workflows
+- `autoforge measure <adapter>` — structured metric measurement with JSON output
 - `autoforge targets <adapter>` — identify worst files for targeting
 - `autoforge skill-info <workflow>` — generate skill descriptions from workflow configs
 - `SkillModeConfig` model for workflow YAML `skill_mode` section
 - `skill.py` module with `generate_skill_description()` and `generate_skill_json()`
 - Workflow YAMLs updated with `skill_mode` configuration
-- Architecture documentation updated for dual-mode operation
+- Architecture reframed: AutoForge as measurement tools for agents, not a standalone agent
 
 ### v0.2.0 — Plugin Architecture (Adapter Extraction)
 - Extracted metric adapters into separate installable packages
@@ -41,15 +41,20 @@
 
 ## Current State
 
-AutoForge supports two execution modes:
-1. **Autonomous mode** (`autoforge run`): AutoForge owns the iteration loop, spawns agent as subprocess
-2. **Skill mode** (`autoforge measure`/`targets`/`skill-info`): AI agent drives the workflow with full context
+AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
+
+Primary usage: AI agent (e.g., Claude Code) calls AutoForge measurement commands as tools:
+- `autoforge measure complexity --path ./src --format json` — get structured metric data
+- `autoforge targets complexity --path ./src -n 5` — identify worst files to fix
+- `autoforge skill-info complexity_refactor` — get workflow instructions as a skill description
+
+Legacy usage: `autoforge run` for autonomous mode where AutoForge owns the iteration loop.
 
 Metric adapters are separate packages discovered via Python entry points:
 - `autoforge-complexity` — NCS measurement via complexity-accounting
 - `autoforge-test-quality` — Composite TQS (coverage + assertion quality + mutation testing)
 
-Skill mode is recommended because:
+The tool architecture is recommended because:
 - Agent maintains context across iterations (no stateless subprocess limitation)
 - Agent can reason about what's working and adapt strategy
 - Native tool access (git, file editing, testing) without reimplementation
@@ -59,6 +64,6 @@ Skill mode is recommended because:
 
 - [ ] Add tests for `skill.py` module
 - [ ] Add tests for `measure` and `targets` CLI commands
-- [ ] Integration testing: end-to-end skill-mode workflow with Claude Code
-- [ ] Consider a `autoforge run --skill-mode` flag that generates and prints skill description instead of running the loop
+- [ ] Integration testing: end-to-end tool-mode workflow with Claude Code
 - [ ] Explore MCP server integration for richer agent-tool communication
+- [ ] Consider deprecation path for autonomous `run` mode

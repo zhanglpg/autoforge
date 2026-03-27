@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "open-autoforge"
 version = "0.1.1"
-description = "Autonomous metric-driven agentic coding framework"
+description = "Metric-driven coding tools for AI agents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Quality Assurance",
 ]
-keywords = ["code-quality", "autonomous", "agentic", "metrics", "refactoring"]
+keywords = ["code-quality", "ai-tools", "metrics", "refactoring", "measurement"]
 dependencies = [
     "pyyaml>=6.0",
 ]

@@ -308,7 +308,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="autoforge",
-        description="AutoForge: Autonomous metric-driven agentic coding framework",
+        description="AutoForge: Metric-driven coding tools for AI agents",
     )
     parser.add_argument(
         "--version", "-V",
