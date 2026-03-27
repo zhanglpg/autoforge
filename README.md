@@ -190,7 +190,7 @@ Reduces code complexity using [complexity-accounting](https://pypi.org/project/c
 
 ### `test_quality`
 
-Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The agent generates missing tests and strengthens existing ones.
+Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric uses per-function scoring with diminishing returns and strength-ratio weighting — adding redundant or weak assertions actively hurts the score, incentivising the agent to write fewer, stronger assertions rather than padding tests with junk.
 
 ## Adding a New Adapter
 

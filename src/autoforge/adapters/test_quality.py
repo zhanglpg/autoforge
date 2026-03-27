@@ -12,9 +12,11 @@ import ast
 import enum
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -122,14 +124,30 @@ class FileAssertionReport:
     def weighted_score(self) -> float:
         """Assertion quality score 0-100 for this file.
 
-        Formula: min(100, weighted_density * 33.3)
-        where weighted_density = sum(weights) / test_function_count
+        Computes a per-function score then averages across all test functions.
+        Each function is scored on three components:
+          - Depth (60%): diminishing-returns curve on effective assertion count
+          - Strength ratio (30%): proportion of strong/structural assertions
+          - Presence (10%): whether the function has any assertions at all
+
+        This rewards quality over quantity — adding weak/redundant assertions
+        dilutes the strength ratio and the depth curve saturates, so spamming
+        assertions yields diminishing (or negative) returns.
         """
         if self.test_function_count == 0:
             return 0.0
-        total_weight = sum(a.strength.weight for a in self.assertions)
-        weighted_density = total_weight / self.test_function_count
-        return min(100.0, weighted_density * 33.3)
+
+        # Group assertions by test function
+        by_func: dict[str, list[AssertionInfo]] = defaultdict(list)
+        for a in self.assertions:
+            by_func[a.test_function].append(a)
+
+        total_function_score = 0.0
+        for _func_name, func_assertions in by_func.items():
+            total_function_score += _score_function_assertions(func_assertions)
+
+        # Functions with no assertions contribute 0.0 each
+        return min(100.0, max(0.0, total_function_score / self.test_function_count))
 
     @property
     def total_count(self) -> int:
@@ -316,6 +334,45 @@ def find_uncovered_functions(
 # Module-Level Pure Helper Functions — Assertion Analysis
 # ---------------------------------------------------------------------------
 
+
+def _score_function_assertions(assertions: list[AssertionInfo]) -> float:
+    """Score a single test function's assertions on a 0-100 scale.
+
+    Three components weighted to reward quality over quantity:
+
+    - **Depth** (60%): Uses ``1 - e^(-effective/2)`` so the first 2-3 strong
+      assertions provide most of the value and returns diminish sharply.
+    - **Strength ratio** (30%): ``(strong + 0.5*structural) / total``.
+      Adding weak assertions *dilutes* this component, actively penalising spam.
+    - **Presence** (10%): Binary — does the function assert anything at all?
+
+    Typical scores per function:
+        3 strong assertions  → ~87
+        15 weak assertions   → ~57
+        3 strong + 10 weak   → ~69 (spam hurts)
+    """
+    if not assertions:
+        return 0.0
+
+    strong = sum(1 for a in assertions if a.strength is AssertionStrength.STRONG)
+    structural = sum(1 for a in assertions if a.strength is AssertionStrength.STRUCTURAL)
+    weak = sum(1 for a in assertions if a.strength is AssertionStrength.WEAK)
+    total = len(assertions)
+
+    # Component A: Depth with diminishing returns (60%)
+    effective_count = strong * 1.0 + structural * 0.5 + weak * 0.2
+    depth_score = (1.0 - math.exp(-effective_count / 2.0)) * 100.0
+
+    # Component B: Strength ratio — anti-spam mechanism (30%)
+    quality_ratio = (strong + 0.5 * structural) / total
+    strength_ratio_score = quality_ratio * 100.0
+
+    # Component C: Presence (10%)
+    presence_score = 100.0
+
+    return 0.60 * depth_score + 0.30 * strength_ratio_score + 0.10 * presence_score
+
+
 # Strong assertions: verify specific behavior
 _STRONG_ASSERT_METHODS = frozenset({
     "assertEqual", "assertNotEqual",
@@ -459,8 +516,8 @@ def analyze_test_file_assertions(
 def compute_assertion_quality_score(report: FileAssertionReport) -> float:
     """Compute 0-100 assertion quality score from an assertion report.
 
-    Formula: min(100, weighted_density * 33.3)
-    where weighted_density = sum(weights) / test_function_count
+    Uses per-function scoring with diminishing returns and strength-ratio
+    weighting.  See ``FileAssertionReport.weighted_score`` for details.
     """
     return report.weighted_score
 

@@ -131,10 +131,14 @@ TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
   - **Strong** (weight 1.0): `assertEqual`, `assertRaises`, `assert x == y`, `pytest.raises`, value comparisons
   - **Structural** (weight 0.5): `assertIsInstance`, `assert len(x) > 0`, `assertIn`
   - **Weak** (weight 0.2): `assert True`, `assertIsNotNone(result)`, bare `assert x`
-- Compute weighted assertion density per test function
-- Score = `min(100, weighted_density x 33.3)` (0 assertions -> 0, 1 strong -> 33, 3+ strong -> 100)
+- Per-function scoring with three components:
+  - **Depth (60%)**: Diminishing-returns curve `(1 - e^(-effective/2)) x 100` — first 2-3 strong assertions provide most value
+  - **Strength ratio (30%)**: `(strong + 0.5 x structural) / total x 100` — adding weak assertions dilutes this, penalising spam
+  - **Presence (10%)**: Binary check that the function asserts anything
+- File score = average of per-function scores (empty test functions contribute 0)
 - Files with no test file -> score 0
-- Rationale: Catches the "coverage without verification" problem without mutation testing overhead
+- Typical scores: 3 strong -> ~87, 15 weak -> ~57, 3 strong + 10 weak spam -> ~72
+- Rationale: Catches the "coverage without verification" problem while preventing assertion spam — adding junk assertions actively hurts the score via strength-ratio dilution
 
 **4. Mutation Score (0-100, optional):**
 - Run `mutmut` on sampled files (configurable sample size, default top-5 by coverage gap)

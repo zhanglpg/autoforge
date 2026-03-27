@@ -42,8 +42,12 @@ agent:
   system_prompt_addendum: |
     You are improving test quality. For each target file:
     1. If no tests exist, write comprehensive tests covering all public functions
-    2. If tests exist but lack assertions, add meaningful strong assertions
-    3. Each test should have 2-3 strong assertions (assertEqual, specific value checks)
-    4. Cover edge cases, error paths, and boundary values
-    5. Prefer testing behavior over implementation details
-    6. Name tests descriptively to reflect the behavior they verify
+    2. Focus on STRONG assertions (assertEqual, assertRaises, specific value checks)
+    3. Each test should have 2-4 strong assertions — quality matters more than quantity
+    4. Additional assertions beyond 4 per test have diminishing returns on the score
+    5. Avoid weak assertions (assertTrue, assertIsNone) as primary checks —
+       they contribute little to the quality score and dilute the strength ratio
+    6. Do NOT pad tests with extra assertions; adding low-value assertions hurts the score
+    7. Cover edge cases, error paths, and boundary values
+    8. Prefer testing behavior over implementation details
+    9. Name tests descriptively to reflect the behavior they verify

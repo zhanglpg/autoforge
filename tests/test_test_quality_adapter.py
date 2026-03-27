@@ -21,6 +21,7 @@ from autoforge.adapters.test_quality import (
     MutationResult,
     TQSWeights,
     TestQualityAdapter,
+    _score_function_assertions,
     analyze_test_file_assertions,
     classify_assertion,
     compute_assertion_quality_score,
@@ -169,20 +170,97 @@ class TestFileAssertionReport:
             test_file_path="t.py", test_function_count=1,
             assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
         )
-        # density = 1.0/1 = 1.0, score = min(100, 1.0 * 33.3) = 33.3
-        assert r.weighted_score == pytest.approx(33.3)
+        # Per-function: depth=(1-e^(-0.5))*100≈39.3, ratio=100, presence=100
+        # 0.6*39.3 + 0.3*100 + 0.1*100 ≈ 63.6
+        assert r.weighted_score == pytest.approx(63.6, abs=0.5)
 
-    def test_weighted_score_capped_at_100(self):
+    def test_weighted_score_three_strong_per_test(self):
         asserts = tuple(
-            AssertionInfo(f"test_{i}", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(3)
+        )
+        r = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=asserts, strong_count=3, structural_count=0, weak_count=0,
+        )
+        # depth=(1-e^(-1.5))*100≈77.7, ratio=100, presence=100
+        # 0.6*77.7 + 0.3*100 + 0.1*100 ≈ 86.6
+        assert r.weighted_score == pytest.approx(86.6, abs=0.5)
+
+    def test_weighted_score_saturates_not_100(self):
+        """Five strong assertions in one function no longer reach 100."""
+        asserts = tuple(
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
             for i in range(5)
         )
         r = FileAssertionReport(
             test_file_path="t.py", test_function_count=1,
             assertions=asserts, strong_count=5, structural_count=0, weak_count=0,
         )
-        # density = 5.0/1 = 5.0, score = min(100, 166.5) = 100
-        assert r.weighted_score == 100.0
+        # depth=(1-e^(-2.5))*100≈91.8 -> 0.6*91.8+0.3*100+0.1*100 ≈ 95.1
+        assert r.weighted_score == pytest.approx(95.1, abs=0.5)
+        assert r.weighted_score < 100.0  # diminishing returns — never quite 100
+
+    def test_weighted_score_weak_spam_scores_low(self):
+        """15 weak assertions should score much lower than 3 strong."""
+        weak_asserts = tuple(
+            AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
+            for i in range(15)
+        )
+        r_weak = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=weak_asserts, strong_count=0, structural_count=0, weak_count=15,
+        )
+        strong_asserts = tuple(
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(3)
+        )
+        r_strong = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=strong_asserts, strong_count=3, structural_count=0, weak_count=0,
+        )
+        # Weak spam: ratio=0, so score is just depth + presence ≈ 57
+        # Strong: ratio=100, score ≈ 87
+        assert r_weak.weighted_score < r_strong.weighted_score
+        assert r_weak.weighted_score < 60.0  # weak spam is capped low
+
+    def test_weighted_score_padding_hurts(self):
+        """Adding weak assertions to good tests should lower the score."""
+        strong_only = tuple(
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(3)
+        )
+        r_clean = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=strong_only, strong_count=3, structural_count=0, weak_count=0,
+        )
+        padded = strong_only + tuple(
+            AssertionInfo("test_x", i + 10, "assertTrue(x)", AssertionStrength.WEAK)
+            for i in range(10)
+        )
+        r_padded = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=padded, strong_count=3, structural_count=0, weak_count=10,
+        )
+        # Adding 10 weak assertions dilutes the strength ratio
+        assert r_padded.weighted_score < r_clean.weighted_score
+
+    def test_weighted_score_empty_functions_lower_average(self):
+        """Test functions with no assertions drag down the file score."""
+        a = AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG)
+        r_one_of_one = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
+        )
+        r_one_of_two = FileAssertionReport(
+            test_file_path="t.py", test_function_count=2,
+            assertions=(a,), strong_count=1, structural_count=0, weak_count=0,
+        )
+        # Second function has 0 assertions → averages in as 0
+        assert r_one_of_two.weighted_score < r_one_of_one.weighted_score
+        assert r_one_of_two.weighted_score == pytest.approx(
+            r_one_of_one.weighted_score / 2, abs=0.1,
+        )
 
 
 # ===========================================================================
@@ -450,6 +528,67 @@ class TestClassifyAssertion:
     def test_pytest_raises(self):
         node = self._parse_expr("pytest.raises(ValueError)")
         assert classify_assertion(node) == AssertionStrength.STRONG
+
+
+# ===========================================================================
+# _score_function_assertions
+# ===========================================================================
+
+class TestScoreFunctionAssertions:
+    """Tests for the per-function assertion scoring helper."""
+
+    def test_empty_list_returns_zero(self):
+        assert _score_function_assertions([]) == 0.0
+
+    def test_one_strong_assertion(self):
+        a = [AssertionInfo("test_x", 1, "assertEqual(a, b)", AssertionStrength.STRONG)]
+        score = _score_function_assertions(a)
+        assert 60.0 < score < 70.0  # ~63.6
+
+    def test_three_strong_is_ideal(self):
+        a = [
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(3)
+        ]
+        score = _score_function_assertions(a)
+        assert 84.0 < score < 90.0  # ~86.6
+
+    def test_diminishing_returns(self):
+        """Each additional assertion contributes less to the score."""
+        scores = []
+        for n in range(1, 8):
+            a = [
+                AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+                for i in range(n)
+            ]
+            scores.append(_score_function_assertions(a))
+        # Marginal gains should decrease
+        gains = [scores[i + 1] - scores[i] for i in range(len(scores) - 1)]
+        for i in range(len(gains) - 1):
+            assert gains[i] > gains[i + 1], (
+                f"Gain from {i+1}->{i+2} ({gains[i]:.1f}) should exceed "
+                f"gain from {i+2}->{i+3} ({gains[i+1]:.1f})"
+            )
+
+    def test_weak_only_scores_low(self):
+        a = [
+            AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
+            for i in range(10)
+        ]
+        score = _score_function_assertions(a)
+        assert score < 50.0  # no strength ratio credit
+
+    def test_strength_ratio_matters(self):
+        """Same total assertions, different ratios, different scores."""
+        all_strong = [
+            AssertionInfo("test_x", i, "assertEqual(a, b)", AssertionStrength.STRONG)
+            for i in range(3)
+        ]
+        all_weak = [
+            AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
+            for i in range(3)
+        ]
+        assert _score_function_assertions(all_strong) > _score_function_assertions(all_weak)
 
 
 # ===========================================================================
