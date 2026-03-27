@@ -190,7 +190,7 @@ Reduces code complexity using [complexity-accounting](https://pypi.org/project/c
 
 ### `test_quality`
 
-Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric uses per-function scoring with diminishing returns and strength-ratio weighting — adding redundant or weak assertions actively hurts the score, incentivising the agent to write fewer, stronger assertions rather than padding tests with junk.
+Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric measures what fraction of test functions have at least one meaningful assertion on the output — code-path coverage is handled by the coverage sub-metrics, so the assertion score purely answers "do the tests verify anything?" Assertion count is deliberately ignored, making it impossible to game by spamming assertions.
 
 ## Adding a New Adapter
 

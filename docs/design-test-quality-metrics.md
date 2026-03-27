@@ -128,17 +128,13 @@ TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
 **3. Assertion Quality Score (0-100):**
 - For each source file's test file(s), AST-parse to find assertions
 - Classify each assertion:
-  - **Strong** (weight 1.0): `assertEqual`, `assertRaises`, `assert x == y`, `pytest.raises`, value comparisons
-  - **Structural** (weight 0.5): `assertIsInstance`, `assert len(x) > 0`, `assertIn`
-  - **Weak** (weight 0.2): `assert True`, `assertIsNotNone(result)`, bare `assert x`
-- Per-function scoring with three components:
-  - **Depth (60%)**: Diminishing-returns curve `(1 - e^(-effective/2)) x 100` — first 2-3 strong assertions provide most value
-  - **Strength ratio (30%)**: `(strong + 0.5 x structural) / total x 100` — adding weak assertions dilutes this, penalising spam
-  - **Presence (10%)**: Binary check that the function asserts anything
-- File score = average of per-function scores (empty test functions contribute 0)
+  - **Strong**: `assertEqual`, `assertRaises`, `assert x == y`, `pytest.raises`, value comparisons
+  - **Structural**: `assertIsInstance`, `assert len(x) > 0`, `assertIn`
+  - **Weak**: `assert True`, `assertIsNotNone(result)`, bare `assert x`
+- Score = `(test functions with ≥1 strong or structural assertion) / total test functions x 100`
+- A test function with only weak assertions counts as *unverified* — it exercises code but does not check results
 - Files with no test file -> score 0
-- Typical scores: 3 strong -> ~87, 15 weak -> ~57, 3 strong + 10 weak spam -> ~72
-- Rationale: Catches the "coverage without verification" problem while preventing assertion spam — adding junk assertions actively hurts the score via strength-ratio dilution
+- Rationale: Code-path coverage is already captured by the coverage and function-coverage sub-metrics. This sub-metric solely answers "do the tests verify anything?" Assertion count is deliberately ignored so the agent cannot game the score by spamming assertions — one good assertion per test function is sufficient
 
 **4. Mutation Score (0-100, optional):**
 - Run `mutmut` on sampled files (configurable sample size, default top-5 by coverage gap)
