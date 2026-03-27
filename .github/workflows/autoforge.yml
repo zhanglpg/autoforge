@@ -55,7 +55,8 @@ jobs:
       - name: Install AutoForge
         run: |
           pip install -e .
-          pip install complexity-accounting
+          pip install -e packages/autoforge-complexity
+          pip install -e packages/autoforge-test-quality
 
       - name: Run Health Check
         id: health
@@ -127,7 +128,8 @@ jobs:
       - name: Install AutoForge
         run: |
           pip install -e .
-          pip install complexity-accounting
+          pip install -e packages/autoforge-complexity
+          pip install -e packages/autoforge-test-quality
 
       - name: Run Workflow
         run: |
