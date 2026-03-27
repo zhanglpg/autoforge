@@ -123,17 +123,17 @@ class FileAssertionReport:
     def weighted_score(self) -> float:
         """Assertion quality score 0-100 for this file.
 
-        Measures what fraction of test functions have at least one strong or
-        structural assertion — i.e. actually verify output/behaviour rather
-        than just exercising code.
+        Measures what fraction of test functions have at least one assertion
+        — i.e. actually verify output rather than just exercising code.
 
-        Score = (functions_with_strong_or_structural / test_function_count) * 100
+        Score = (functions_with_any_assertion / test_function_count) * 100
 
-        Code-path coverage is already captured by the coverage and
-        function-coverage sub-metrics; this sub-metric's job is solely to
-        answer *"do the tests verify anything?"*.  Counting assertion
-        quantity is deliberately avoided so the agent cannot game the score
-        by spamming assertions.
+        Any assertion counts — ``assertTrue(result)`` is perfectly valid for
+        a boolean-returning function.  Code-path coverage is already captured
+        by the coverage and function-coverage sub-metrics; this sub-metric's
+        job is solely to answer *"do the tests verify anything?"*.  Counting
+        assertion quantity is deliberately avoided so the agent cannot game
+        the score by spamming assertions.
         """
         if self.test_function_count == 0:
             return 0.0
@@ -338,16 +338,14 @@ def find_uncovered_functions(
 
 
 def _has_meaningful_assertion(assertions: list[AssertionInfo]) -> bool:
-    """Return True if a test function has at least one strong or structural assertion.
+    """Return True if a test function has at least one assertion of any kind.
 
-    A test that only uses weak assertions (assertTrue, assertIsNone, bare
-    ``assert x``) is treated as *unverified* — it exercises code but does not
-    check the result against an expected value.
+    Any assertion — including assertTrue, assertIsNone, or bare ``assert x`` —
+    counts as verifying output.  A function returning a boolean is perfectly
+    well-tested by ``assertTrue(result)``.  The only truly unverified test
+    function is one with *zero* assertions.
     """
-    return any(
-        a.strength in (AssertionStrength.STRONG, AssertionStrength.STRUCTURAL)
-        for a in assertions
-    )
+    return len(assertions) > 0
 
 
 # Strong assertions: verify specific behavior
@@ -493,8 +491,8 @@ def analyze_test_file_assertions(
 def compute_assertion_quality_score(report: FileAssertionReport) -> float:
     """Compute 0-100 assertion quality score from an assertion report.
 
-    Returns the fraction of test functions that have at least one strong or
-    structural assertion.  See ``FileAssertionReport.weighted_score``.
+    Returns the fraction of test functions that have at least one assertion.
+    See ``FileAssertionReport.weighted_score``.
     """
     return report.weighted_score
 

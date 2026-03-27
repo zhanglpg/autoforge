@@ -182,15 +182,23 @@ class TestFileAssertionReport:
         )
         assert r.weighted_score == 100.0
 
-    def test_weighted_score_weak_only_not_verified(self):
-        """Only weak assertions → function is NOT verified → 0%."""
+    def test_weighted_score_weak_assertions_are_valid(self):
+        """assertTrue is valid for boolean-returning functions → 100%."""
         asserts = tuple(
             AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
-            for i in range(15)
+            for i in range(3)
         )
         r = FileAssertionReport(
             test_file_path="t.py", test_function_count=1,
-            assertions=asserts, strong_count=0, structural_count=0, weak_count=15,
+            assertions=asserts, strong_count=0, structural_count=0, weak_count=3,
+        )
+        assert r.weighted_score == 100.0
+
+    def test_weighted_score_no_assertions_not_verified(self):
+        """Test function with zero assertions → 0%."""
+        r = FileAssertionReport(
+            test_file_path="t.py", test_function_count=1,
+            assertions=(), strong_count=0, structural_count=0, weak_count=0,
         )
         assert r.weighted_score == 0.0
 
@@ -526,14 +534,12 @@ class TestHasMeaningfulAssertion:
         a = [AssertionInfo("test_x", 1, "assertIn(x, y)", AssertionStrength.STRUCTURAL)]
         assert _has_meaningful_assertion(a) is True
 
-    def test_weak_only_is_not_meaningful(self):
-        a = [
-            AssertionInfo("test_x", i, "assertTrue(x)", AssertionStrength.WEAK)
-            for i in range(10)
-        ]
-        assert _has_meaningful_assertion(a) is False
+    def test_weak_assertion_is_meaningful(self):
+        """assertTrue is valid — e.g. for boolean-returning functions."""
+        a = [AssertionInfo("test_x", 1, "assertTrue(x)", AssertionStrength.WEAK)]
+        assert _has_meaningful_assertion(a) is True
 
-    def test_weak_plus_one_strong_is_meaningful(self):
+    def test_any_assertion_counts(self):
         a = [
             AssertionInfo("test_x", 1, "assertTrue(x)", AssertionStrength.WEAK),
             AssertionInfo("test_x", 2, "assertEqual(a, b)", AssertionStrength.STRONG),

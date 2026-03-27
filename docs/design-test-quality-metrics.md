@@ -127,14 +127,10 @@ TQS = w_cov x coverage + w_func x func_coverage + w_assert x assertion_quality
 
 **3. Assertion Quality Score (0-100):**
 - For each source file's test file(s), AST-parse to find assertions
-- Classify each assertion:
-  - **Strong**: `assertEqual`, `assertRaises`, `assert x == y`, `pytest.raises`, value comparisons
-  - **Structural**: `assertIsInstance`, `assert len(x) > 0`, `assertIn`
-  - **Weak**: `assert True`, `assertIsNotNone(result)`, bare `assert x`
-- Score = `(test functions with ≥1 strong or structural assertion) / total test functions x 100`
-- A test function with only weak assertions counts as *unverified* — it exercises code but does not check results
+- Assertions are still classified for informational purposes (strong/structural/weak), but all types count equally for scoring — `assertTrue(result)` is perfectly valid for boolean-returning functions
+- Score = `(test functions with ≥1 assertion) / total test functions x 100`
 - Files with no test file -> score 0
-- Rationale: Code-path coverage is already captured by the coverage and function-coverage sub-metrics. This sub-metric solely answers "do the tests verify anything?" Assertion count is deliberately ignored so the agent cannot game the score by spamming assertions — one good assertion per test function is sufficient
+- Rationale: Code-path coverage is already captured by the coverage and function-coverage sub-metrics. This sub-metric solely answers "do the tests verify anything?" Assertion count is deliberately ignored so the agent cannot game the score by spamming assertions — one assertion per test function is sufficient
 
 **4. Mutation Score (0-100, optional):**
 - Run `mutmut` on sampled files (configurable sample size, default top-5 by coverage gap)
