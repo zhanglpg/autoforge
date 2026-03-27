@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from autoforge.adapters.base import BaseMetricAdapter
-from autoforge.adapters.complexity import ComplexityAdapter
 from autoforge.models import Direction, MetricResult
 from autoforge.registry import (
     _ADAPTER_REGISTRY,
@@ -20,28 +19,43 @@ from autoforge.registry import (
 
 
 class TestAdapterRegistry:
-    def test_list_includes_builtin(self):
+    def test_list_includes_discovered(self):
         adapters = list_adapters()
-        assert "complexity" in adapters
+        # Adapters are discovered via entry points when installed
+        assert isinstance(adapters, list)
 
-    def test_get_complexity(self):
-        adapter = get_adapter("complexity")
-        assert isinstance(adapter, ComplexityAdapter)
-        assert adapter.name == "complexity"
+    def test_get_complexity_when_installed(self):
+        try:
+            adapter = get_adapter("complexity")
+            assert adapter.name == "complexity"
+        except ValueError:
+            pytest.skip("autoforge-complexity not installed")
 
-    def test_get_with_kwargs(self):
-        adapter = get_adapter("complexity", no_churn=False, ncs_model="additive")
-        assert isinstance(adapter, ComplexityAdapter)
-        assert adapter.ncs_model == "additive"
-        assert adapter.no_churn is False
+    def test_get_with_kwargs_when_installed(self):
+        try:
+            adapter = get_adapter("complexity", no_churn=False, ncs_model="additive")
+            assert adapter.ncs_model == "additive"
+            assert adapter.no_churn is False
+        except ValueError:
+            pytest.skip("autoforge-complexity not installed")
 
     def test_get_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown adapter 'nonexistent'"):
             get_adapter("nonexistent")
 
-    def test_error_message_lists_available(self):
-        with pytest.raises(ValueError, match="complexity"):
-            get_adapter("bad_name")
+    def test_error_message_shows_install_hint(self):
+        """When a known adapter name is not found, the error includes a pip install hint."""
+        import autoforge.registry as reg
+        old_cache = reg._EP_CACHE
+        old_reg = reg._ADAPTER_REGISTRY.copy()
+        try:
+            reg._EP_CACHE = {}
+            reg._ADAPTER_REGISTRY.clear()
+            with pytest.raises(ValueError, match="pip install autoforge-complexity"):
+                get_adapter("complexity")
+        finally:
+            reg._EP_CACHE = old_cache
+            reg._ADAPTER_REGISTRY.update(old_reg)
 
     def test_register_custom_adapter(self):
         class DummyAdapter(BaseMetricAdapter):

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from autoforge.adapters.test_quality import (
+from autoforge_test_quality import (
     AssertionInfo,
     AssertionStrength,
     FileAssertionReport,
@@ -21,7 +21,6 @@ from autoforge.adapters.test_quality import (
     MutationResult,
     TQSWeights,
     TestQualityAdapter,
-    _has_meaningful_assertion,
     analyze_test_file_assertions,
     classify_assertion,
     compute_assertion_quality_score,
@@ -35,6 +34,7 @@ from autoforge.adapters.test_quality import (
     map_tests_to_sources,
     parse_coverage_json,
 )
+from autoforge_test_quality._adapter import _has_meaningful_assertion
 from autoforge.models import Direction, MetricResult
 
 

@@ -29,7 +29,15 @@ AutoForge itself does **not** call the Claude API directly &mdash; it orchestrat
 ## Installation
 
 ```bash
+# Core framework only
 pip install autoforge
+
+# With specific metric adapters
+pip install autoforge-complexity      # Code complexity (NCS)
+pip install autoforge-test-quality    # Test quality (TQS)
+
+# Or install everything
+pip install autoforge[all]
 ```
 
 For development:
@@ -38,6 +46,10 @@ For development:
 git clone https://github.com/zhanglpg/autoforge.git
 cd autoforge
 pip install -e ".[dev]"
+
+# Install adapter packages in dev mode
+pip install -e packages/autoforge-complexity
+pip install -e packages/autoforge-test-quality
 ```
 
 Requires Python 3.10+.
@@ -285,34 +297,46 @@ Improves test suite quality by combining coverage measurement, function gap anal
 
 ## Adding a New Adapter
 
-1. Subclass `BaseMetricAdapter` in `src/autoforge/adapters/`
-2. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
-3. Register in `src/autoforge/registry.py`
-4. Create a workflow YAML in `src/autoforge/workflows/`
+Adapters are discovered via Python entry points. Create a new package:
 
-See `src/autoforge/adapters/complexity.py` for a reference implementation.
+1. Create a package with a class that subclasses `BaseMetricAdapter` from `autoforge.adapters.base`
+2. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
+3. Register via entry point in your package's `pyproject.toml`:
+   ```toml
+   [project.entry-points."autoforge.adapters"]
+   my_metric = "my_package:MyAdapter"
+   ```
+4. Create a workflow YAML in `src/autoforge/workflows/` (or your project's `.autoforge/` directory)
+
+See `packages/autoforge-complexity/` for a reference implementation.
 
 ## Project Structure
 
 ```
-src/autoforge/
-├── __init__.py         # Package version
-├── __main__.py         # CLI entry point (run, measure, targets, skill-info, health, list)
-├── models.py           # Core data models (MetricResult, WorkflowConfig, RunReport)
-├── runner.py           # Workflow runner (measure-act-validate loop, autonomous mode)
-├── skill.py            # Skill description generator (skill mode)
-├── budget.py           # Budget manager (iteration/token/time limits, stall detection)
-├── git_manager.py      # Git operations (branch, commit, rollback per iteration)
-├── regression.py       # Regression guard (test runner, constraint checking)
-├── reporting.py        # Report generation (JSON, markdown, health dashboard)
-├── registry.py         # Workflow & adapter registry
+src/autoforge/                          # Core framework
+├── __init__.py                         # Package version
+├── __main__.py                         # CLI entry point
+├── models.py                           # Core data models (MetricResult, WorkflowConfig, RunReport)
+├── runner.py                           # Workflow runner (measure-act-validate loop)
+├── skill.py                            # Skill description generator
+├── budget.py                           # Budget manager (iteration/token/time limits, stall detection)
+├── git_manager.py                      # Git operations (branch, commit, rollback)
+├── regression.py                       # Regression guard (test runner, constraint checking)
+├── reporting.py                        # Report generation (JSON, markdown, health dashboard)
+├── registry.py                         # Workflow & adapter registry (entry-point discovery)
 ├── adapters/
-│   ├── base.py         # BaseMetricAdapter ABC
-│   ├── complexity.py   # Complexity adapter (NCS)
-│   └── test_quality.py # Test quality adapter (TQS)
+│   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
     └── test_quality.yaml
+
+packages/
+├── autoforge-complexity/               # Complexity adapter package
+│   └── src/autoforge_complexity/
+│       └── _adapter.py                 # ComplexityAdapter (NCS via complexity-accounting)
+└── autoforge-test-quality/             # Test quality adapter package
+    └── src/autoforge_test_quality/
+        └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
 ```
 
 ## Development
