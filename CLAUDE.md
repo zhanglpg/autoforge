@@ -6,24 +6,28 @@ Autonomous metric-driven agentic coding framework. Generalizes the pattern:
 ## Project Structure
 
 ```
-src/autoforge/
-├── __init__.py         # Package version
-├── __main__.py         # CLI entry point (run, measure, targets, skill-info, health, list)
-├── models.py           # Core data models (MetricResult, WorkflowConfig, RunReport)
-├── runner.py           # Workflow runner (measure-act-validate loop, autonomous mode)
-├── skill.py            # Skill description generator (skill mode)
-├── budget.py           # Budget manager (iteration/token/time limits, stall detection)
-├── git_manager.py      # Git operations (branch, commit, rollback per iteration)
-├── regression.py       # Regression guard (test runner, constraint checking)
-├── reporting.py        # Report generation (JSON, markdown, health dashboard)
-├── registry.py         # Workflow & adapter registry
+src/autoforge/                          # Core framework
+├── __init__.py                         # Package version
+├── __main__.py                         # CLI entry point
+├── models.py                           # Core data models
+├── runner.py                           # Workflow runner (measure-act-validate loop)
+├── skill.py                            # Skill description generator
+├── budget.py                           # Budget manager
+├── git_manager.py                      # Git operations
+├── regression.py                       # Regression guard
+├── reporting.py                        # Report generation
+├── registry.py                         # Workflow & adapter registry (entry-point discovery)
 ├── adapters/
-│   ├── base.py         # BaseMetricAdapter ABC
-│   ├── complexity.py   # Complexity adapter (NCS)
-│   └── test_quality.py # Test quality adapter (TQS)
+│   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
     └── test_quality.yaml
+
+packages/                               # Adapter packages (separate install)
+├── autoforge-complexity/               # pip install autoforge-complexity
+│   └── src/autoforge_complexity/
+└── autoforge-test-quality/             # pip install autoforge-test-quality
+    └── src/autoforge_test_quality/
 ```
 
 ## Key Commands
@@ -46,6 +50,8 @@ autoforge list
 
 ```bash
 pip install -e ".[dev]"
+pip install -e packages/autoforge-complexity
+pip install -e packages/autoforge-test-quality
 pytest
 ```
 
@@ -66,10 +72,11 @@ Core components:
 
 ## Adding a New Adapter
 
-1. Subclass `BaseMetricAdapter` in `src/autoforge/adapters/`
-2. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
-3. Register in `src/autoforge/registry.py`
-4. Create a workflow YAML in `src/autoforge/workflows/`
+1. Create a new package (see `packages/autoforge-complexity/` as reference)
+2. Subclass `BaseMetricAdapter` from `autoforge.adapters.base`
+3. Implement `check_prerequisites()`, `measure()`, `identify_targets()`
+4. Register via entry point: `[project.entry-points."autoforge.adapters"]`
+5. Create a workflow YAML in `src/autoforge/workflows/`
 
 ## Documentation Maintenance
 

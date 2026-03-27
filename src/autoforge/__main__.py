@@ -158,7 +158,15 @@ def cmd_measure(args: argparse.Namespace) -> int:
     repo_path = str(Path(args.repo).resolve())
     target_path = str(Path(args.path).resolve()) if args.path else repo_path
 
-    adapter = get_adapter(args.adapter)
+    try:
+        adapter = get_adapter(args.adapter)
+    except ValueError as e:
+        print(
+            json.dumps({"error": str(e)})
+            if args.format == "json"
+            else f"Error: {e}"
+        )
+        return 1
 
     if not adapter.check_prerequisites(repo_path):
         print(
@@ -205,7 +213,11 @@ def cmd_targets(args: argparse.Namespace) -> int:
     repo_path = str(Path(args.repo).resolve())
     target_path = str(Path(args.path).resolve()) if args.path else repo_path
 
-    adapter = get_adapter(args.adapter)
+    try:
+        adapter = get_adapter(args.adapter)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
 
     if not adapter.check_prerequisites(repo_path):
         print(f"Error: Prerequisites not met for adapter '{args.adapter}'")

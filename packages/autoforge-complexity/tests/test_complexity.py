@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from autoforge.adapters.complexity import ComplexityAdapter
+from autoforge_complexity import ComplexityAdapter
 from autoforge.models import Direction, MetricResult
 
 

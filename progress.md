@@ -29,11 +29,25 @@
 - Workflow YAMLs updated with `skill_mode` configuration
 - Architecture documentation updated for dual-mode operation
 
+### v0.2.0 — Plugin Architecture (Adapter Extraction)
+- Extracted metric adapters into separate installable packages
+- `autoforge-complexity`: Code complexity adapter (NCS via complexity-accounting)
+- `autoforge-test-quality`: Test quality adapter (coverage, assertions, mutation)
+- Entry-point based plugin discovery (`autoforge.adapters` group)
+- Core framework is now dependency-lean (only `pyyaml`)
+- `pip install autoforge[all]` for convenience install of all adapters
+- Clear install hints when adapter is not found
+- Third-party adapters can register via entry points without touching core
+
 ## Current State
 
 AutoForge supports two execution modes:
 1. **Autonomous mode** (`autoforge run`): AutoForge owns the iteration loop, spawns agent as subprocess
 2. **Skill mode** (`autoforge measure`/`targets`/`skill-info`): AI agent drives the workflow with full context
+
+Metric adapters are separate packages discovered via Python entry points:
+- `autoforge-complexity` — NCS measurement via complexity-accounting
+- `autoforge-test-quality` — Composite TQS (coverage + assertion quality + mutation testing)
 
 Skill mode is recommended because:
 - Agent maintains context across iterations (no stateless subprocess limitation)
