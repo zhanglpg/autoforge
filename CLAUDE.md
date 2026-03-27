@@ -8,9 +8,10 @@ Autonomous metric-driven agentic coding framework. Generalizes the pattern:
 ```
 src/autoforge/
 ├── __init__.py         # Package version
-├── __main__.py         # CLI entry point (run, health, list commands)
+├── __main__.py         # CLI entry point (run, measure, targets, skill-info, health, list)
 ├── models.py           # Core data models (MetricResult, WorkflowConfig, RunReport)
-├── runner.py           # Workflow runner (measure-act-validate loop)
+├── runner.py           # Workflow runner (measure-act-validate loop, autonomous mode)
+├── skill.py            # Skill description generator (skill mode)
 ├── budget.py           # Budget manager (iteration/token/time limits, stall detection)
 ├── git_manager.py      # Git operations (branch, commit, rollback per iteration)
 ├── regression.py       # Regression guard (test runner, constraint checking)
@@ -18,15 +19,25 @@ src/autoforge/
 ├── registry.py         # Workflow & adapter registry
 ├── adapters/
 │   ├── base.py         # BaseMetricAdapter ABC
-│   └── complexity.py   # complexity-accounting adapter (NCS)
+│   ├── complexity.py   # Complexity adapter (NCS)
+│   └── test_quality.py # Test quality adapter (TQS)
 └── workflows/
-    └── complexity_refactor.yaml  # First workflow config
+    ├── complexity_refactor.yaml
+    └── test_quality.yaml
 ```
 
 ## Key Commands
 
 ```bash
+# Autonomous mode (AutoForge drives the loop)
 autoforge run complexity_refactor --path ./src --target 3.0
+
+# Skill mode (agent-driven — measurement tools for AI agents)
+autoforge measure complexity --path ./src --format json
+autoforge targets complexity --path ./src -n 5
+autoforge skill-info complexity_refactor --path ./src --target 3.0
+
+# Health & discovery
 autoforge health --path ./src
 autoforge list
 ```
@@ -40,9 +51,15 @@ pytest
 
 ## Architecture
 
+Two execution modes:
+- **Autonomous Mode**: `WorkflowRunner` owns the loop, spawns agent as subprocess
+- **Skill Mode** (recommended): AI agent drives the workflow, calls `autoforge measure`/`targets` as tools
+
+Core components:
 - **MetricAdapter**: Protocol for plugging in measurement tools
 - **WorkflowConfig**: YAML-defined workflow with metrics, budget, constraints
-- **WorkflowRunner**: Executes the iteration loop with budget/regression guards
+- **WorkflowRunner**: Executes the iteration loop with budget/regression guards (autonomous mode)
+- **SkillGenerator**: Produces skill descriptions from workflow configs (skill mode)
 - **BudgetManager**: Enforces hard limits, detects improvement stalls
 - **GitManager**: Creates branches, commits per iteration, supports rollback
 - **RegressionGuard**: Runs tests between iterations, checks constraints

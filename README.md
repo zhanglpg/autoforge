@@ -93,6 +93,41 @@ Execute a metric-driven improvement workflow.
 | `--agent-command` | Custom agent command (overrides workflow `agent.command`; used as-is) |
 | `--output, -o` | Output directory for reports |
 
+### `autoforge measure <adapter>`
+
+Run a metric adapter and output results. Designed for skill mode &mdash; agents call this to measure metrics.
+
+| Flag | Description |
+|---|---|
+| `--path, -p` | Target path to measure (default: repo root) |
+| `--repo, -r` | Repository root (default: `.`) |
+| `--format, -f` | Output format: `text` or `json` (default: `json`) |
+
+### `autoforge targets <adapter>`
+
+Identify the worst files for a metric. Agents call this to know where to focus.
+
+| Flag | Description |
+|---|---|
+| `--path, -p` | Target path to analyze (default: repo root) |
+| `--repo, -r` | Repository root (default: `.`) |
+| `-n` | Number of target files to return (default: 5) |
+| `--format, -f` | Output format: `text` or `json` (default: `json`) |
+
+### `autoforge skill-info <workflow>`
+
+Generate a skill description from a workflow config for AI agent consumption.
+
+| Flag | Description |
+|---|---|
+| `--path, -p` | Target path for skill context (default: repo root) |
+| `--repo, -r` | Repository root (default: `.`) |
+| `--target, -t` | Target metric value |
+| `--config, -c` | Path to workflow YAML config file |
+| `--test-command` | Test command for skill description |
+| `--format, -f` | Output format: `text` (markdown) or `json` |
+| `--output, -o` | Save output to file |
+
 ### `autoforge health`
 
 Run all (or specified) metric adapters and produce a health dashboard.
@@ -111,6 +146,10 @@ List all registered workflows and adapters.
 
 ## Architecture
 
+AutoForge supports two execution modes:
+
+### Mode 1: Autonomous Runner (subprocess)
+
 ```
 ┌─────────────────────────────────────────────────┐
 │                  WorkflowRunner                  │
@@ -126,52 +165,104 @@ List all registered workflows and adapters.
 └─────────────────────────────────────────────────-┘
 ```
 
-- **WorkflowRunner** &mdash; orchestrates the iteration loop: measure baseline, invoke agent, re-measure, validate, commit or rollback.
-- **Agent (Claude Code)** &mdash; the external coding agent invoked as a subprocess each iteration. The runner constructs a prompt with the current metric value, target, and priority files, then calls `claude --print --output-format json`. Use `--agent-command` to substitute a different agent.
-- **BudgetManager** &mdash; enforces iteration/token/time limits and detects improvement stalls. Token usage is parsed best-effort from the agent's JSON output or stderr.
+AutoForge owns the loop and spawns the agent as a subprocess each iteration. Best for fully unattended runs.
+
+### Mode 2: Skill Mode (agent-driven) &mdash; Recommended
+
+```
+┌─────────────────────────────────────────────────┐
+│            AI Agent (Claude Code, etc.)           │
+│     Drives iteration loop with full context       │
+├─────────────────────────────────────────────────┤
+│  autoforge measure  │  autoforge targets         │
+│  (metric adapters)  │  (worst-file targeting)    │
+├─────────────────────────────────────────────────┤
+│         autoforge skill-info <workflow>           │
+│    (generates skill description from config)      │
+└─────────────────────────────────────────────────┘
+```
+
+The AI agent drives the workflow directly, calling `autoforge measure` and `autoforge targets` as CLI tools. The agent maintains full context across iterations &mdash; it remembers what it tried, can adapt strategy, and uses its native git/edit/test capabilities. AutoForge provides the measurement infrastructure and workflow configuration.
+
+### Core Components
+
+- **MetricAdapter** &mdash; protocol for plugging in any measurement tool. Adapters normalize tool output into a standard `MetricResult` and identify priority files for the agent to focus on.
+- **WorkflowRunner** &mdash; orchestrates the autonomous iteration loop (Mode 1).
+- **Skill Generator** &mdash; produces structured skill descriptions from workflow configs (Mode 2).
+- **BudgetManager** &mdash; enforces iteration/token/time limits and detects improvement stalls.
 - **GitManager** &mdash; creates feature branches, commits per iteration, rolls back failed iterations.
 - **RegressionGuard** &mdash; runs tests and checks constraint metrics between iterations.
-- **MetricAdapter** &mdash; protocol for plugging in any measurement tool. Adapters normalize tool output into a standard `MetricResult` and identify priority files for the agent to focus on.
 
-## Agent Integration
+## Skill Mode (Agent-Driven)
 
-AutoForge follows a **subprocess-based agent model**: the framework handles everything except the actual code changes, which are delegated to a local coding agent.
+The recommended way to use AutoForge is **skill mode**, where an AI coding agent (like Claude Code) drives the workflow using AutoForge's measurement tools. This approach gives the agent full context across iterations &mdash; it remembers what it tried, can adapt strategy, and uses its native capabilities for git, file editing, and test running.
+
+### Why Skill Mode?
+
+In autonomous mode, each agent invocation is stateless &mdash; iteration 5 might retry exactly what iteration 2 already failed at. In skill mode, the agent maintains conversational context and can reason about what's working and what isn't.
+
+### Generate a Skill Description
+
+```bash
+# Generate skill instructions for Claude Code
+autoforge skill-info complexity_refactor --path ./src --target 3.0
+
+# Output as structured JSON
+autoforge skill-info complexity_refactor --format json
+
+# Save to a file
+autoforge skill-info test_quality --output ./skill.md
+```
+
+### Standalone Measurement Commands
+
+These commands let any agent (or human) measure metrics and identify targets:
+
+```bash
+# Measure a metric (returns JSON by default)
+autoforge measure complexity --path ./src
+autoforge measure test_quality --path ./src --format text
+
+# Identify worst files to target
+autoforge targets complexity --path ./src -n 5
+autoforge targets test_quality --path ./src -n 10 --format text
+```
+
+### Using with Claude Code
+
+1. Generate the skill description: `autoforge skill-info complexity_refactor --path ./src`
+2. Provide it as context to Claude Code (paste into conversation, or add to CLAUDE.md)
+3. Claude Code will follow the skill protocol: measure, identify targets, make changes, test, re-measure, commit
+
+The agent handles git management, test running, and error recovery natively &mdash; no subprocess overhead or stateless limitations.
+
+## Autonomous Mode (Subprocess)
+
+The original execution mode where AutoForge owns the iteration loop and invokes the agent as a subprocess.
 
 ### Default: Claude Code
 
 Each iteration, the `WorkflowRunner`:
 
 1. Calls `adapter.identify_targets()` to find priority files needing improvement.
-2. Builds a structured prompt containing: iteration number, current metric value, target, direction (minimize/maximize), priority file list, and any `system_prompt_addendum` from the workflow YAML.
-3. Writes the prompt to a temp file and invokes:
-   ```
-   claude --print --output-format json -p "$(cat <prompt_file>)"
-   ```
-4. Parses token usage from the agent's JSON output (or stderr) for budget tracking.
-
-The agent runs inside the repository working directory and directly modifies files on disk. After the agent returns, AutoForge re-measures, validates (tests + constraints), and commits or rolls back.
+2. Builds a structured prompt with current metric value, target, direction, priority files, and `system_prompt_addendum`.
+3. Invokes the agent as a subprocess: `claude --print --output-format json -p "<prompt>"`
+4. Parses token usage from the agent's output for budget tracking.
 
 ### Custom Agents
 
-Use `--agent-command` to substitute any command that accepts a prompt on stdin or as an argument:
+Use `--agent-command` to substitute any command:
 
 ```bash
-# Use a custom script
 autoforge run complexity_refactor --path ./src --target 3.0 \
   --agent-command "python my_agent.py"
-
-# Use a different CLI tool
-autoforge run complexity_refactor --path ./src --target 3.0 \
-  --agent-command "aider --message"
 ```
 
 ### Workflow YAML Agent Config
 
-Each workflow YAML can include an `agent` section to configure the agent binary and provide domain-specific instructions:
-
 ```yaml
 agent:
-  command: "claude"  # Agent binary (default: claude). Change to use a different agent.
+  command: "claude"
   skill: "refactor-complexity"
   system_prompt_addendum: |
     You are performing complexity-driven iterative refactoring.
@@ -180,7 +271,7 @@ agent:
 
 ### Fail-Fast Validation
 
-AutoForge verifies the agent binary exists on `PATH` before starting any iterations. If the agent is not found, the run fails immediately with a clear error message suggesting either installing the agent or using `--agent-command`.
+AutoForge verifies the agent binary exists on `PATH` before starting. If not found, the run fails immediately with a clear error.
 
 ## Built-in Workflows
 
@@ -206,9 +297,10 @@ See `src/autoforge/adapters/complexity.py` for a reference implementation.
 ```
 src/autoforge/
 ├── __init__.py         # Package version
-├── __main__.py         # CLI entry point (run, health, list commands)
+├── __main__.py         # CLI entry point (run, measure, targets, skill-info, health, list)
 ├── models.py           # Core data models (MetricResult, WorkflowConfig, RunReport)
-├── runner.py           # Workflow runner (measure-act-validate loop)
+├── runner.py           # Workflow runner (measure-act-validate loop, autonomous mode)
+├── skill.py            # Skill description generator (skill mode)
 ├── budget.py           # Budget manager (iteration/token/time limits, stall detection)
 ├── git_manager.py      # Git operations (branch, commit, rollback per iteration)
 ├── regression.py       # Regression guard (test runner, constraint checking)

@@ -69,3 +69,20 @@ agent:
     refactorings with no feature additions.
 
     Stop when NCS drops below target or improvement plateaus (< 1%).
+
+# Skill mode: instructions for AI agents driving this workflow directly.
+# Generate full skill description with: autoforge skill-info complexity_refactor
+skill_mode:
+  enabled: true
+  measurement_commands:
+    measure: "autoforge measure complexity --path {target_path} --repo {repo_path} --format json"
+    targets: "autoforge targets complexity --path {target_path} --repo {repo_path} -n 5"
+  iteration_protocol: |
+    Each iteration:
+    1. Run `autoforge measure complexity` to get current NCS
+    2. Run `autoforge targets complexity` to find worst files
+    3. Read the target files and identify complexity hotspots
+    4. Make 2-4 focused refactorings (extract functions, reduce nesting, simplify dispatch)
+    5. Run tests to verify no regressions
+    6. Re-measure to confirm NCS improved
+    7. Commit with message: autoforge(complexity_refactor): iteration N — NCS before -> after
