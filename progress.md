@@ -1,8 +1,8 @@
 # AutoForge Development Progress
 
-## Completed Milestones
+## Implemented
 
-### v0.1.0 — Core Framework
+### Core Framework
 - Core data models (`MetricResult`, `WorkflowConfig`, `RunReport`)
 - CLI tools: `measure`, `targets`, `skill-info`, `health`, `list` commands
 - `WorkflowRunner` with measure-act-validate iteration loop (autonomous mode)
@@ -10,94 +10,64 @@
 - `GitManager` with branch creation, per-iteration commits, rollback
 - `RegressionGuard` with test running and constraint checking
 - YAML workflow configuration system
-- Registry for adapters and workflows
+- Registry for adapters and workflows (entry-point discovery)
 - JSON and Markdown reporting with health dashboard
+- Tool architecture: agents call `autoforge measure` / `autoforge targets` as CLI tools
+- `SkillGenerator` for producing skill descriptions from workflow configs
+- CI: `tests.yml` (Python 3.10-3.13 matrix), `autoforge.yml` (health + dry-run)
 
-### v0.1.1 — Metric Adapters
-- `ComplexityAdapter` wrapping complexity-accounting for NCS measurement
-- `TestQualityAdapter` with coverage, function gap, assertion quality, mutation testing
-- `complexity_refactor` workflow (minimize NCS)
-- `test_quality` workflow (maximize TQS)
-
-### v0.1.2 — Tool & Skill Architecture
-- **Tool architecture**: AutoForge provides measurement CLI tools that AI agents call during their workflows
-- `autoforge measure <adapter>` — structured metric measurement with JSON output
-- `autoforge targets <adapter>` — identify worst files for targeting
-- `autoforge skill-info <workflow>` — generate skill descriptions from workflow configs
-- `SkillModeConfig` model for workflow YAML `skill_mode` section
-- `skill.py` module with `generate_skill_description()` and `generate_skill_json()`
-- Workflow YAMLs updated with `skill_mode` configuration
-- Architecture reframed: AutoForge as measurement tools for agents, not a standalone agent
-
-### v0.2.0 — Plugin Architecture (Adapter Extraction)
-- Extracted metric adapters into separate installable packages
-- `autoforge-complexity`: Code complexity adapter (NCS via complexity-accounting)
-- `autoforge-test-quality`: Test quality adapter (coverage, assertions, mutation)
+### Plugin Architecture
+- Metric adapters extracted into separate installable packages
 - Entry-point based plugin discovery (`autoforge.adapters` group)
-- Core framework is now dependency-lean (only `pyyaml`)
+- Core framework is dependency-lean (only `pyyaml`)
 - `pip install autoforge[all]` for convenience install of all adapters
-- Clear install hints when adapter is not found
 - Third-party adapters can register via entry points without touching core
 
-### v0.3.0 — Multi-Language Support (Go)
-- `autoforge-go-test-quality`: Go test quality adapter package
-  - Statement coverage via `go test -coverprofile` with coverage profile parsing
-  - Exported function coverage via `go tool cover -func`
-  - Regex-based assertion analysis of `_test.go` files (strong/structural/weak classification)
-  - Go-specific quality indicators: table-driven tests, subtests (`t.Run`), testify detection
-  - Quality bonuses for idiomatic Go testing patterns
+### Metric Adapters
+- **autoforge-complexity** — NCS measurement via complexity-accounting (Python, Go, Java, JS/TS, Rust, C++)
+- **autoforge-test-quality** — Composite TQS for Python (coverage + assertion quality + mutation testing)
+- **autoforge-go-test-quality** — Composite TQS for Go (coverage + assertion quality + mutation testing)
+  - Go-specific quality indicators: table-driven tests, subtests, testify detection
   - Optional mutation testing via `go-mutesting`
-  - Composite Go TQS score (0-100) with configurable weights
-- `go_test_quality` workflow YAML for AI agent-driven Go test improvement
-- Registry updated with install hint for `go_test_quality` adapter
-- Architecture proven for multi-language support — each language gets its own test quality adapter
 
-### v0.3.1 — Metric Verification & Assertion Quality Fixes
-- Fixed context-aware assertion classification for Go adapter
-  - Multi-line `if got != want { t.Errorf(...) }` now correctly classified as STRONG
-  - Error-guard patterns (`if err != nil { t.Fatal }`) excluded from promotion, remain WEAK
-- Assertion strength weights now affect scoring (STRONG=1.0, STRUCTURAL=0.5, WEAK=0.2)
-  - Previously only binary "has any assertion?" was used, ignoring quality tiers
-- Added Go sample project (`testdata/go-sample-project/`) for metric validation
-- Documented metric auditing best practices: metrics drive the loop, LLM judgment audits the results
+### Workflows
+- `complexity_refactor` — reduce NCS via complexity measurement
+- `test_quality` — improve Python test quality via TQS
+- `go_test_quality` — improve Go test quality via TQS
 
-### v0.3.2 — Claude Code Slash Commands (Layer 3 Wrappers)
-- Added `.claude/commands/` with reference slash commands for Claude Code
-  - `/project:refactor-complexity` — reduce code complexity via NCS measurement
-  - `/project:improve-test-quality` — improve Python test quality via TQS measurement
-  - `/project:improve-go-tests` — improve Go test quality via TQS measurement
-- Commands are thin wrappers that call `autoforge skill-info` and let the agent drive
-- Documented three-layer architecture: CLI tool (Layer 1), skill description (Layer 2), agent-framework skill (Layer 3)
-- Layer 3 kept outside core — framework-specific wrappers are examples, not features
+### Claude Code Integration
+- `.claude/commands/` with slash commands: `refactor-complexity`, `improve-test-quality`, `improve-go-tests`
+- Commands call `autoforge skill-info` and let the agent drive the workflow
 
 ## Current State
 
-AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
+AutoForge is a **measurement toolkit for AI agents**. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows. Legacy autonomous mode (`autoforge run`) is still available.
 
-Primary usage: AI agent (e.g., Claude Code) calls AutoForge measurement commands as tools:
-- `autoforge measure complexity --path ./src --format json` — get structured metric data
-- `autoforge targets complexity --path ./src -n 5` — identify worst files to fix
-- `autoforge skill-info complexity_refactor` — get workflow instructions as a skill description
+370 tests across 13 test files. All core modules have dedicated test suites.
 
-Legacy usage: `autoforge run` for autonomous mode where AutoForge owns the iteration loop.
+## Known Gaps
 
-Metric adapters are separate packages discovered via Python entry points:
-- `autoforge-complexity` — NCS measurement via complexity-accounting (supports Python, Go, Java, JS/TS, Rust, C++)
-- `autoforge-test-quality` — Composite TQS for Python (coverage + assertion quality + mutation testing)
-- `autoforge-go-test-quality` — Composite TQS for Go (coverage + assertion quality + mutation testing)
+- Lint/type error validation not in regression guard (agents can run lint natively in tool mode)
+- Max files per iteration not enforced at runtime (communicated via skill descriptions and `targets -n`)
+- Health dashboard thresholds are hardcoded
+- No Orchestrator layer (agent serves as orchestrator in tool mode)
+- No multi-agent parallel execution (agent's responsibility in tool mode)
 
-The tool architecture is recommended because:
-- Agent maintains context across iterations (no stateless subprocess limitation)
-- Agent can reason about what's working and adapt strategy
-- Native tool access (git, file editing, testing) without reimplementation
-- Better error recovery and diagnosis
+## Roadmap
 
-## Next Steps
+- [ ] **Type Safety + Security** — Lint/type error validation in regression guard, security scanning
+- [ ] **LLM-as-Judge** — Metric audit step in workflow configs (periodic LLM cross-check of metric outputs)
+- [ ] **More language adapters** — Test quality adapters for JS/TS, Java, Rust
+- [ ] **CLI test coverage** — Tests for `skill.py`, `measure`, and `targets` commands
+- [ ] **Integration testing** — End-to-end tool-mode workflow with Claude Code
+- [ ] **MCP server integration** — Richer agent-tool communication
+- [ ] **Scale & Ecosystem** — Multi-agent parallel execution, configurable health thresholds
+- [ ] **Deprecation path for autonomous `run` mode**
 
-- [ ] Add test quality adapters for more languages (JS/TS, Java, Rust)
-- [ ] Add tests for `skill.py` module
-- [ ] Add tests for `measure` and `targets` CLI commands
-- [ ] Integration testing: end-to-end tool-mode workflow with Claude Code
-- [ ] Explore MCP server integration for richer agent-tool communication
-- [ ] Consider deprecation path for autonomous `run` mode
-- [ ] Build metric audit step into workflow configs (periodic LLM cross-check of metric outputs)
+## Deviations from Design Doc
+
+1. **No Orchestrator layer** — CLI directly instantiates WorkflowRunner. In tool mode, the AI agent serves as the orchestrator.
+2. **No multi-agent parallel execution** — Single sequential execution. Parallel execution is the agent's responsibility in tool mode. Phase 4 scope.
+3. **Lint/type error validation missing** — Deferred to Type Safety phase. Agents run lint/type checks natively in tool mode.
+4. **Max files per iteration not enforced** — `BudgetConfig.max_files_per_iteration` is communicated via skill descriptions and `targets -n`, but not enforced post-hoc.
+5. **Health dashboard thresholds hardcoded** — Should become configurable when more adapters are added.
