@@ -7,6 +7,11 @@ Metric-driven coding tools for AI agents. AutoForge provides measurement CLI com
 ## Project Structure
 
 ```
+.claude/commands/                       # Claude Code slash commands (Layer 3 wrappers)
+├── refactor-complexity.md
+├── improve-test-quality.md
+└── improve-go-tests.md
+
 src/autoforge/                          # Core framework
 ├── __init__.py                         # Package version
 ├── __main__.py                         # CLI entry point
