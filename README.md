@@ -272,6 +272,22 @@ Both bugs were invisible to the metric itself &mdash; they required qualitative 
 - **Audit when scores seem wrong.** If a file with obviously poor tests scores well (or vice versa), investigate the metric — it may have a classification bug.
 - **Treat the metric as a speedometer, not a GPS.** It tells you how fast you're going, not whether you're headed the right direction. LLM judgment provides the direction.
 
+## Claude Code Slash Commands
+
+AutoForge includes reference [Claude Code slash commands](https://docs.anthropic.com/en/docs/claude-code/slash-commands) in `.claude/commands/` that wire AutoForge workflows as `/project` commands. These are thin Layer 3 wrappers &mdash; they call `autoforge skill-info` to inject the workflow protocol into the agent's context, then the agent drives the loop using `autoforge measure` and `autoforge targets` as CLI tools.
+
+Available commands:
+
+| Command | Workflow | What it does |
+|---------|----------|--------------|
+| `/project:refactor-complexity ./src` | `complexity_refactor` | Iteratively reduce code complexity (NCS) |
+| `/project:improve-test-quality ./src` | `test_quality` | Improve Python test suite quality (TQS) |
+| `/project:improve-go-tests .` | `go_test_quality` | Improve Go test suite quality (TQS) |
+
+Each command accepts a path argument (the directory to improve). The agent receives the full skill description and follows the iteration protocol autonomously.
+
+**Why these are in the repo, not in AutoForge core:** Different agent frameworks have different skill/tool APIs (Claude Code slash commands, OpenAI function calling, LangChain tools, etc.). AutoForge shouldn't be coupled to any specific agent framework. These commands are a documented example of how to wire AutoForge into Claude Code &mdash; adapt the pattern for your agent framework.
+
 ## Adding a New Adapter
 
 Adapters are discovered via Python entry points. Create a new package:
@@ -292,6 +308,11 @@ Once registered, agents can immediately use `autoforge measure my_metric` and `a
 ## Project Structure
 
 ```
+.claude/commands/                       # Claude Code slash commands (Layer 3 wrappers)
+├── refactor-complexity.md              # /project:refactor-complexity
+├── improve-test-quality.md             # /project:improve-test-quality
+└── improve-go-tests.md                 # /project:improve-go-tests
+
 src/autoforge/                          # Core framework
 ├── __init__.py                         # Package version
 ├── __main__.py                         # CLI entry point

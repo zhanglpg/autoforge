@@ -61,6 +61,15 @@
 - Added Go sample project (`testdata/go-sample-project/`) for metric validation
 - Documented metric auditing best practices: metrics drive the loop, LLM judgment audits the results
 
+### v0.3.2 — Claude Code Slash Commands (Layer 3 Wrappers)
+- Added `.claude/commands/` with reference slash commands for Claude Code
+  - `/project:refactor-complexity` — reduce code complexity via NCS measurement
+  - `/project:improve-test-quality` — improve Python test quality via TQS measurement
+  - `/project:improve-go-tests` — improve Go test quality via TQS measurement
+- Commands are thin wrappers that call `autoforge skill-info` and let the agent drive
+- Documented three-layer architecture: CLI tool (Layer 1), skill description (Layer 2), agent-framework skill (Layer 3)
+- Layer 3 kept outside core — framework-specific wrappers are examples, not features
+
 ## Current State
 
 AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
