@@ -126,7 +126,9 @@ class FileAssertionReport:
     def weighted_score(self) -> float:
         """Assertion quality score 0-100 for this file.
 
-        Base = fraction of test functions with at least one assertion.
+        Per-function score = best assertion strength weight in that function
+        (STRONG=1.0, STRUCTURAL=0.5, WEAK=0.2, none=0.0).
+        Base = mean of per-function scores * 100.
         Bonus for Go-specific quality patterns (table tests, subtests, testify).
         """
         if self.test_function_count == 0:
@@ -136,8 +138,21 @@ class FileAssertionReport:
         for a in self.assertions:
             by_func[a.test_function].append(a)
 
-        verified_count = sum(1 for fa in by_func.values() if len(fa) > 0)
-        base = (verified_count / self.test_function_count) * 100.0
+        func_scores: list[float] = []
+        for _i in range(self.test_function_count):
+            func_scores.append(0.0)  # placeholder for functions with no key
+
+        # Rebuild: compute per-function best-strength score
+        # We need to account for all test functions, not just those with assertions.
+        # Use _extract_test_function_ranges ordering isn't available here,
+        # so count: functions with assertions get their best weight, others get 0.
+        func_best: dict[str, float] = {}
+        for func_name, asserts in by_func.items():
+            func_best[func_name] = max(a.strength.weight for a in asserts)
+
+        total_score = sum(func_best.values())  # sum of best weights for funcs with assertions
+        # Functions without any assertion contribute 0
+        base = (total_score / self.test_function_count) * 100.0
 
         # Go-specific quality bonuses
         bonus = 0.0
@@ -373,10 +388,16 @@ _STRONG_PATTERNS = [
     re.compile(r'cmp\.Diff\b'),
     # reflect.DeepEqual
     re.compile(r'reflect\.DeepEqual\b'),
-    # Explicit comparison + error: if got != want { t.Errorf / t.Fatalf
+    # Explicit comparison + error on same line (rare but possible)
     re.compile(r'if\s+\w+\s*!=\s*\w+\s*\{[^}]*t\.(?:Error|Fatal|Errorf|Fatalf)'),
     re.compile(r'if\s+\w+\s*==\s*\w+\s*\{[^}]*t\.(?:Error|Fatal|Errorf|Fatalf)'),
 ]
+
+# Patterns that indicate the surrounding `if` is a value comparison (for
+# promoting multi-line t.Errorf inside an if-block from WEAK to STRONG).
+_COMPARISON_IF_RE = re.compile(
+    r'^\s*if\s+.*(?:!=|==|<|>|<=|>=)\s*'
+)
 
 # --- STRUCTURAL assertions: verify shape/type/presence ---
 _STRUCTURAL_PATTERNS = [
@@ -431,6 +452,51 @@ def classify_go_assertion(line: str) -> AssertionStrength | None:
         if pattern.search(line):
             return AssertionStrength.WEAK
     return None
+
+
+_ERROR_GUARD_RE = re.compile(
+    r'^\s*if\s+\w*[Ee]rr\w*\s*!=\s*nil\s*\{'
+)
+
+
+def _classify_with_context(
+    line: str,
+    line_idx: int,
+    lines: list[str],
+) -> AssertionStrength | None:
+    """Classify a line with surrounding context awareness.
+
+    Promotes t.Error/t.Errorf/t.Fatal/t.Fatalf from WEAK to STRONG when
+    they appear inside a value-comparison ``if`` block — the most common
+    Go assertion idiom (``if got != want { t.Errorf(...) }``).
+
+    Does NOT promote when the ``if`` is a common guard pattern:
+    - ``if err != nil`` (error guard — just checking success, not verifying a value)
+    """
+    strength = classify_go_assertion(line)
+    if strength is not AssertionStrength.WEAK:
+        return strength
+
+    # Only consider t.Error/t.Errorf/t.Fatal/t.Fatalf for promotion.
+    # Testify patterns like assert.Nil, assert.True etc. stay WEAK.
+    stripped = line.strip()
+    is_t_error = bool(re.match(r't\.(?:Error|Errorf|Fatal|Fatalf)\b', stripped))
+    if not is_t_error:
+        return strength
+
+    for back in range(1, min(4, line_idx + 1)):
+        prev = lines[line_idx - back]
+        if _COMPARISON_IF_RE.match(prev):
+            # Don't promote error-guard patterns
+            if _ERROR_GUARD_RE.match(prev):
+                return strength
+            return AssertionStrength.STRONG
+        # Stop scanning if we hit another statement (non-blank, non-brace)
+        prev_stripped = prev.strip()
+        if prev_stripped and prev_stripped not in ('{', '}'):
+            break
+
+    return strength
 
 
 def _detect_quality_indicators(source_code: str) -> GoTestQualityIndicators:
@@ -499,7 +565,7 @@ def analyze_go_test_file_assertions(
     for func_name, start, end in func_ranges:
         for line_num in range(start - 1, min(end, len(lines))):
             line = lines[line_num]
-            strength = classify_go_assertion(line)
+            strength = _classify_with_context(line, line_num, lines)
             if strength is not None:
                 assertions.append(AssertionInfo(
                     test_function=func_name,

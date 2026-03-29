@@ -184,8 +184,9 @@ class TestFileAssertionReport:
             weak_count=1,
             quality_indicators=qi,
         )
-        # Both functions have assertions: 100%
-        assert report.weighted_score == pytest.approx(100.0)
+        # TestFoo has STRONG (weight 1.0), TestBar has WEAK (weight 0.2)
+        # Score = (1.0 + 0.2) / 2 * 100 = 60.0
+        assert report.weighted_score == pytest.approx(60.0)
 
     def test_weighted_score_with_bonus(self):
         assertions = (
@@ -440,9 +441,9 @@ class TestAnalyzeGoTestFileAssertions:
         assert report.test_function_count == 1
         assert report.quality_indicators.has_table_driven_tests
         assert report.quality_indicators.has_subtests
-        # The if/t.Errorf spans two lines, so line-by-line regex classifies
-        # t.Errorf as WEAK. The assertion is still detected.
-        assert report.weak_count >= 1
+        # The t.Errorf is inside `if got != tt.want`, so context-aware
+        # classification promotes it from WEAK to STRONG.
+        assert report.strong_count >= 1
 
     def test_no_assertions(self):
         source = textwrap.dedent("""\
