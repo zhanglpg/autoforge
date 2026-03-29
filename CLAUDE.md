@@ -22,13 +22,16 @@ src/autoforge/                          # Core framework
 │   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
-    └── test_quality.yaml
+    ├── test_quality.yaml
+    └── go_test_quality.yaml
 
 packages/                               # Adapter packages (separate install)
 ├── autoforge-complexity/               # pip install autoforge-complexity
 │   └── src/autoforge_complexity/
-└── autoforge-test-quality/             # pip install autoforge-test-quality
-    └── src/autoforge_test_quality/
+├── autoforge-test-quality/             # pip install autoforge-test-quality
+│   └── src/autoforge_test_quality/
+└── autoforge-go-test-quality/          # pip install autoforge-go-test-quality
+    └── src/autoforge_go_test_quality/
 ```
 
 ## Key Commands
@@ -75,6 +78,16 @@ Core components:
 - **BudgetManager**: Enforces hard limits, detects improvement stalls (autonomous mode; communicated to agents via skill descriptions)
 - **GitManager**: Creates branches, commits per iteration, supports rollback (autonomous mode)
 - **RegressionGuard**: Runs tests between iterations, checks constraints (autonomous mode)
+
+## Metric Auditing Principle
+
+Metrics drive the improvement loop; LLM judgment audits the results. When using AutoForge metrics to drive test-quality or code-quality improvement:
+
+- **Don't trust the metric blindly.** Sample metric outputs and verify classifications match reality.
+- **Watch for gaming.** Metrics reward structure, not semantics — tests can satisfy the metric without testing meaningful behavior.
+- **Investigate suspicious scores.** A sudden jump to 100% or a high score on obviously weak code suggests a metric bug or miscalibration.
+
+See the "Metric Auditing" section in README.md for detailed rationale and examples from the Go adapter verification.
 
 ## Adding a New Adapter
 

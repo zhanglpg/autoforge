@@ -48,7 +48,8 @@ pip install autoforge
 
 # With specific metric adapters
 pip install autoforge-complexity      # Code complexity (NCS)
-pip install autoforge-test-quality    # Test quality (TQS)
+pip install autoforge-test-quality    # Test quality (TQS) — Python
+pip install autoforge-go-test-quality # Test quality (TQS) — Go
 
 # Or install everything
 pip install autoforge[all]
@@ -64,6 +65,7 @@ pip install -e ".[dev]"
 # Install adapter packages in dev mode
 pip install -e packages/autoforge-complexity
 pip install -e packages/autoforge-test-quality
+pip install -e packages/autoforge-go-test-quality
 ```
 
 Requires Python 3.10+.
@@ -238,7 +240,37 @@ Reduces code complexity using [complexity-accounting](https://pypi.org/project/c
 
 ### `test_quality`
 
-Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric measures what fraction of test functions have at least one meaningful assertion on the output &mdash; code-path coverage is handled by the coverage sub-metrics, so the assertion score purely answers "do the tests verify anything?" Assertion count is deliberately ignored, making it impossible to game by spamming assertions.
+Improves Python test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric measures what fraction of test functions have at least one meaningful assertion on the output &mdash; code-path coverage is handled by the coverage sub-metrics, so the assertion score purely answers "do the tests verify anything?" Assertion count is deliberately ignored, making it impossible to game by spamming assertions.
+
+### `go_test_quality`
+
+Improves Go test suite quality using the Go toolchain. Combines statement coverage (`go test -cover`), exported function coverage (`go tool cover -func`), regex-based assertion analysis of `_test.go` files, and optional mutation testing (`go-mutesting`). Recognizes Go-specific quality patterns: table-driven tests, subtests (`t.Run`), and testify assertions &mdash; awarding quality bonuses for idiomatic Go testing practices.
+
+## Metric Auditing: Metrics Drive, LLMs Verify
+
+AutoForge metrics are designed to drive iterative improvement loops, but **metrics alone are not sufficient for high-quality results**. Quantitative metrics can be gamed, miscalibrated, or blind to semantic quality. The recommended workflow uses metrics for scale and LLM judgment for calibration:
+
+### The Pattern
+
+1. **Metric drives the loop** &mdash; `autoforge measure` and `autoforge targets` identify what to improve and track progress. This is objective, reproducible, and scales to hundreds of files.
+2. **LLM does the work** &mdash; the agent reads code, reasons about design, and writes improvements. This is where qualitative skill matters.
+3. **LLM audits the metric** &mdash; periodically, the agent should sample metric outputs and cross-check against its own assessment. Does the metric's classification match reality? Are improvements genuine or just gaming the score?
+
+### Why This Matters
+
+During development of the Go test quality adapter, two significant metric bugs were found through LLM auditing:
+
+- **Multi-line assertion blindness**: The most common Go assertion pattern (`if got != want {\n    t.Errorf(...)\n}`) was misclassified because the regex worked line-by-line. The metric scored these as WEAK when they were actually STRONG. An agent following the metric alone would not improve these tests.
+- **Strength-blind scoring**: Assertion strength (STRONG/STRUCTURAL/WEAK) was classified but never used in scoring. A test with `t.Error("something")` scored identically to one with `if got != 5 { t.Errorf(...) }`. The metric reported high quality for mediocre tests.
+
+Both bugs were invisible to the metric itself &mdash; they required qualitative reasoning about what the metric *should* measure vs. what it *actually* measured.
+
+### Recommendations for Agents
+
+- **Don't blindly trust a perfect score.** If TQS jumps to 100 after one iteration, sample a few files and verify the tests are genuinely good.
+- **Watch for gaming patterns.** Metrics reward structure, not semantics. An agent can pad assertions without testing meaningful behavior.
+- **Audit when scores seem wrong.** If a file with obviously poor tests scores well (or vice versa), investigate the metric — it may have a classification bug.
+- **Treat the metric as a speedometer, not a GPS.** It tells you how fast you're going, not whether you're headed the right direction. LLM judgment provides the direction.
 
 ## Adding a New Adapter
 
@@ -275,15 +307,19 @@ src/autoforge/                          # Core framework
 │   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
-    └── test_quality.yaml
+    ├── test_quality.yaml
+    └── go_test_quality.yaml
 
 packages/
 ├── autoforge-complexity/               # Complexity adapter package
 │   └── src/autoforge_complexity/
 │       └── _adapter.py                 # ComplexityAdapter (NCS via complexity-accounting)
-└── autoforge-test-quality/             # Test quality adapter package
-    └── src/autoforge_test_quality/
-        └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
+├── autoforge-test-quality/             # Test quality adapter package (Python)
+│   └── src/autoforge_test_quality/
+│       └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
+└── autoforge-go-test-quality/          # Test quality adapter package (Go)
+    └── src/autoforge_go_test_quality/
+        └── _adapter.py                 # GoTestQualityAdapter (go test, cover, assertions)
 ```
 
 ## Development

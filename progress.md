@@ -39,6 +39,28 @@
 - Clear install hints when adapter is not found
 - Third-party adapters can register via entry points without touching core
 
+### v0.3.0 — Multi-Language Support (Go)
+- `autoforge-go-test-quality`: Go test quality adapter package
+  - Statement coverage via `go test -coverprofile` with coverage profile parsing
+  - Exported function coverage via `go tool cover -func`
+  - Regex-based assertion analysis of `_test.go` files (strong/structural/weak classification)
+  - Go-specific quality indicators: table-driven tests, subtests (`t.Run`), testify detection
+  - Quality bonuses for idiomatic Go testing patterns
+  - Optional mutation testing via `go-mutesting`
+  - Composite Go TQS score (0-100) with configurable weights
+- `go_test_quality` workflow YAML for AI agent-driven Go test improvement
+- Registry updated with install hint for `go_test_quality` adapter
+- Architecture proven for multi-language support — each language gets its own test quality adapter
+
+### v0.3.1 — Metric Verification & Assertion Quality Fixes
+- Fixed context-aware assertion classification for Go adapter
+  - Multi-line `if got != want { t.Errorf(...) }` now correctly classified as STRONG
+  - Error-guard patterns (`if err != nil { t.Fatal }`) excluded from promotion, remain WEAK
+- Assertion strength weights now affect scoring (STRONG=1.0, STRUCTURAL=0.5, WEAK=0.2)
+  - Previously only binary "has any assertion?" was used, ignoring quality tiers
+- Added Go sample project (`testdata/go-sample-project/`) for metric validation
+- Documented metric auditing best practices: metrics drive the loop, LLM judgment audits the results
+
 ## Current State
 
 AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
@@ -51,8 +73,9 @@ Primary usage: AI agent (e.g., Claude Code) calls AutoForge measurement commands
 Legacy usage: `autoforge run` for autonomous mode where AutoForge owns the iteration loop.
 
 Metric adapters are separate packages discovered via Python entry points:
-- `autoforge-complexity` — NCS measurement via complexity-accounting
-- `autoforge-test-quality` — Composite TQS (coverage + assertion quality + mutation testing)
+- `autoforge-complexity` — NCS measurement via complexity-accounting (supports Python, Go, Java, JS/TS, Rust, C++)
+- `autoforge-test-quality` — Composite TQS for Python (coverage + assertion quality + mutation testing)
+- `autoforge-go-test-quality` — Composite TQS for Go (coverage + assertion quality + mutation testing)
 
 The tool architecture is recommended because:
 - Agent maintains context across iterations (no stateless subprocess limitation)
@@ -62,8 +85,10 @@ The tool architecture is recommended because:
 
 ## Next Steps
 
+- [ ] Add test quality adapters for more languages (JS/TS, Java, Rust)
 - [ ] Add tests for `skill.py` module
 - [ ] Add tests for `measure` and `targets` CLI commands
 - [ ] Integration testing: end-to-end tool-mode workflow with Claude Code
 - [ ] Explore MCP server integration for richer agent-tool communication
 - [ ] Consider deprecation path for autonomous `run` mode
+- [ ] Build metric audit step into workflow configs (periodic LLM cross-check of metric outputs)
