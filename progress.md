@@ -39,6 +39,19 @@
 - Clear install hints when adapter is not found
 - Third-party adapters can register via entry points without touching core
 
+### v0.3.0 — Multi-Language Support (Go)
+- `autoforge-go-test-quality`: Go test quality adapter package
+  - Statement coverage via `go test -coverprofile` with coverage profile parsing
+  - Exported function coverage via `go tool cover -func`
+  - Regex-based assertion analysis of `_test.go` files (strong/structural/weak classification)
+  - Go-specific quality indicators: table-driven tests, subtests (`t.Run`), testify detection
+  - Quality bonuses for idiomatic Go testing patterns
+  - Optional mutation testing via `go-mutesting`
+  - Composite Go TQS score (0-100) with configurable weights
+- `go_test_quality` workflow YAML for AI agent-driven Go test improvement
+- Registry updated with install hint for `go_test_quality` adapter
+- Architecture proven for multi-language support — each language gets its own test quality adapter
+
 ## Current State
 
 AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
@@ -51,8 +64,9 @@ Primary usage: AI agent (e.g., Claude Code) calls AutoForge measurement commands
 Legacy usage: `autoforge run` for autonomous mode where AutoForge owns the iteration loop.
 
 Metric adapters are separate packages discovered via Python entry points:
-- `autoforge-complexity` — NCS measurement via complexity-accounting
-- `autoforge-test-quality` — Composite TQS (coverage + assertion quality + mutation testing)
+- `autoforge-complexity` — NCS measurement via complexity-accounting (supports Python, Go, Java, JS/TS, Rust, C++)
+- `autoforge-test-quality` — Composite TQS for Python (coverage + assertion quality + mutation testing)
+- `autoforge-go-test-quality` — Composite TQS for Go (coverage + assertion quality + mutation testing)
 
 The tool architecture is recommended because:
 - Agent maintains context across iterations (no stateless subprocess limitation)
@@ -62,6 +76,7 @@ The tool architecture is recommended because:
 
 ## Next Steps
 
+- [ ] Add test quality adapters for more languages (JS/TS, Java, Rust)
 - [ ] Add tests for `skill.py` module
 - [ ] Add tests for `measure` and `targets` CLI commands
 - [ ] Integration testing: end-to-end tool-mode workflow with Claude Code

@@ -22,13 +22,16 @@ src/autoforge/                          # Core framework
 │   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
-    └── test_quality.yaml
+    ├── test_quality.yaml
+    └── go_test_quality.yaml
 
 packages/                               # Adapter packages (separate install)
 ├── autoforge-complexity/               # pip install autoforge-complexity
 │   └── src/autoforge_complexity/
-└── autoforge-test-quality/             # pip install autoforge-test-quality
-    └── src/autoforge_test_quality/
+├── autoforge-test-quality/             # pip install autoforge-test-quality
+│   └── src/autoforge_test_quality/
+└── autoforge-go-test-quality/          # pip install autoforge-go-test-quality
+    └── src/autoforge_go_test_quality/
 ```
 
 ## Key Commands

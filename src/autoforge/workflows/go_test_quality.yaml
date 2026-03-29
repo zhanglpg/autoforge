@@ -1,0 +1,68 @@
+# AutoForge Workflow: Go Test Quality Improvement
+#
+# Uses coverage profiling and regex-based assertion analysis to compute a
+# Go Test Quality Score (TQS) and iteratively improve Go test suites.
+# Combines coverage, function gap analysis, assertion quality, and optional
+# mutation testing.
+
+name: go_test_quality
+version: "1.0"
+description: "Improve Go test suite quality through iterative test generation and enhancement"
+adapter: go_test_quality
+
+language_support:
+  go:
+    metric_tool: go-test-cover
+    metric_command: "go test -coverprofile=coverage.out ./..."
+    metric_parser: "go_coverage_profile"
+
+primary_metric:
+  name: go_test_quality_score
+  direction: maximize
+  default_target: 80.0
+
+constraint_metrics:
+  - name: test_suite_pass
+    tolerance_percent: 0
+    direction: maximize
+
+budget:
+  max_iterations: 15
+  max_tokens: 500000
+  max_wall_clock_minutes: 45
+  stall_patience: 3
+  min_improvement_percent: 2.0
+  max_files_per_iteration: 5
+
+scope:
+  priority: worst_first
+
+agent:
+  command: "claude"
+  skill: "improve-go-test-quality"
+  system_prompt_addendum: |
+    You are improving Go test quality. For each target file:
+    1. If no tests exist, write comprehensive tests covering all exported functions
+    2. Each test function MUST have at least one assertion — use explicit comparisons
+       (if got != want { t.Errorf(...) }) or testify assertions (assert.Equal)
+    3. Prefer table-driven tests for functions with multiple input scenarios
+    4. Use t.Run for subtests to organize test cases
+    5. Test error paths: check that functions return expected errors
+    6. Cover distinct code paths: edge cases, error paths, boundary values
+    7. Follow Go testing conventions: TestFunctionName, _test.go in same package
+    8. Do NOT add assertions just to pad — quality over quantity
+
+skill_mode:
+  enabled: true
+  measurement_commands:
+    measure: "autoforge measure go_test_quality --path {target_path} --repo {repo_path} --format json"
+    targets: "autoforge targets go_test_quality --path {target_path} --repo {repo_path} -n 5"
+  iteration_protocol: |
+    Each iteration:
+    1. Run `autoforge measure go_test_quality` to get current TQS
+    2. Run `autoforge targets go_test_quality` to find worst-tested files
+    3. Read the target source files to understand what needs testing
+    4. Write or improve tests — use table-driven tests, subtests, explicit assertions
+    5. Run `go test ./...` to verify they pass
+    6. Re-measure to confirm TQS improved
+    7. Commit with message: autoforge(go_test_quality): iteration N — TQS before -> after

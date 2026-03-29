@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoforge-go-test-quality"
+version = "0.1.0"
+description = "Go test quality metric adapter for AutoForge (coverage, assertion quality, mutation testing)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["autoforge", "go", "golang", "test-quality", "coverage", "metrics"]
+dependencies = [
+    "open-autoforge>=0.1.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[project.entry-points."autoforge.adapters"]
+go_test_quality = "autoforge_go_test_quality:GoTestQualityAdapter"
+
+[project.urls]
+Homepage = "https://github.com/zhanglpg/autoforge"
+Repository = "https://github.com/zhanglpg/autoforge"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

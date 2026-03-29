@@ -48,7 +48,8 @@ pip install autoforge
 
 # With specific metric adapters
 pip install autoforge-complexity      # Code complexity (NCS)
-pip install autoforge-test-quality    # Test quality (TQS)
+pip install autoforge-test-quality    # Test quality (TQS) — Python
+pip install autoforge-go-test-quality # Test quality (TQS) — Go
 
 # Or install everything
 pip install autoforge[all]
@@ -64,6 +65,7 @@ pip install -e ".[dev]"
 # Install adapter packages in dev mode
 pip install -e packages/autoforge-complexity
 pip install -e packages/autoforge-test-quality
+pip install -e packages/autoforge-go-test-quality
 ```
 
 Requires Python 3.10+.
@@ -238,7 +240,11 @@ Reduces code complexity using [complexity-accounting](https://pypi.org/project/c
 
 ### `test_quality`
 
-Improves test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric measures what fraction of test functions have at least one meaningful assertion on the output &mdash; code-path coverage is handled by the coverage sub-metrics, so the assertion score purely answers "do the tests verify anything?" Assertion count is deliberately ignored, making it impossible to game by spamming assertions.
+Improves Python test suite quality by combining coverage measurement, function gap analysis, and assertion quality scoring. The assertion quality metric measures what fraction of test functions have at least one meaningful assertion on the output &mdash; code-path coverage is handled by the coverage sub-metrics, so the assertion score purely answers "do the tests verify anything?" Assertion count is deliberately ignored, making it impossible to game by spamming assertions.
+
+### `go_test_quality`
+
+Improves Go test suite quality using the Go toolchain. Combines statement coverage (`go test -cover`), exported function coverage (`go tool cover -func`), regex-based assertion analysis of `_test.go` files, and optional mutation testing (`go-mutesting`). Recognizes Go-specific quality patterns: table-driven tests, subtests (`t.Run`), and testify assertions &mdash; awarding quality bonuses for idiomatic Go testing practices.
 
 ## Adding a New Adapter
 
@@ -275,15 +281,19 @@ src/autoforge/                          # Core framework
 │   └── base.py                         # BaseMetricAdapter ABC
 └── workflows/
     ├── complexity_refactor.yaml
-    └── test_quality.yaml
+    ├── test_quality.yaml
+    └── go_test_quality.yaml
 
 packages/
 ├── autoforge-complexity/               # Complexity adapter package
 │   └── src/autoforge_complexity/
 │       └── _adapter.py                 # ComplexityAdapter (NCS via complexity-accounting)
-└── autoforge-test-quality/             # Test quality adapter package
-    └── src/autoforge_test_quality/
-        └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
+├── autoforge-test-quality/             # Test quality adapter package (Python)
+│   └── src/autoforge_test_quality/
+│       └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
+└── autoforge-go-test-quality/          # Test quality adapter package (Go)
+    └── src/autoforge_go_test_quality/
+        └── _adapter.py                 # GoTestQualityAdapter (go test, cover, assertions)
 ```
 
 ## Development
