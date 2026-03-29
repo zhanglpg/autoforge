@@ -52,6 +52,15 @@
 - Registry updated with install hint for `go_test_quality` adapter
 - Architecture proven for multi-language support — each language gets its own test quality adapter
 
+### v0.3.1 — Metric Verification & Assertion Quality Fixes
+- Fixed context-aware assertion classification for Go adapter
+  - Multi-line `if got != want { t.Errorf(...) }` now correctly classified as STRONG
+  - Error-guard patterns (`if err != nil { t.Fatal }`) excluded from promotion, remain WEAK
+- Assertion strength weights now affect scoring (STRONG=1.0, STRUCTURAL=0.5, WEAK=0.2)
+  - Previously only binary "has any assertion?" was used, ignoring quality tiers
+- Added Go sample project (`testdata/go-sample-project/`) for metric validation
+- Documented metric auditing best practices: metrics drive the loop, LLM judgment audits the results
+
 ## Current State
 
 AutoForge is a **measurement toolkit for AI agents**, not a standalone agent. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows.
@@ -82,3 +91,4 @@ The tool architecture is recommended because:
 - [ ] Integration testing: end-to-end tool-mode workflow with Claude Code
 - [ ] Explore MCP server integration for richer agent-tool communication
 - [ ] Consider deprecation path for autonomous `run` mode
+- [ ] Build metric audit step into workflow configs (periodic LLM cross-check of metric outputs)
