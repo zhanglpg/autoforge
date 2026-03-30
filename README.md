@@ -16,7 +16,7 @@ Agent (Claude Code, etc.) drives the loop
 
 - **CLI measurement tools** &mdash; `measure` and `targets` commands that agents call as tools to get structured metric data.
 - **Pluggable metric adapters** &mdash; bring your own measurement tool. Built-in adapters for code complexity (NCS via `complexity-accounting`) and test quality (coverage + assertion analysis).
-- **Skill descriptions** &mdash; generate workflow instructions from YAML configs that agents can follow as structured skills.
+- **Skill descriptions** &mdash; generate tool-contract descriptions from YAML configs (metrics, commands, budget, constraints) for agent consumption.
 - **YAML workflow configs** &mdash; declarative definitions specifying metrics, budgets, constraints, and agent guidance.
 - **Health dashboards** &mdash; run all adapters to produce a codebase health snapshot.
 - **Autonomous mode** (legacy) &mdash; a subprocess runner that owns the iteration loop, for fully unattended runs.
@@ -27,7 +27,7 @@ AutoForge is designed to be used **by** an AI agent, not **as** one. The agent (
 
 1. **`autoforge measure`** &mdash; runs a metric adapter and returns structured JSON results
 2. **`autoforge targets`** &mdash; identifies the worst files for a given metric
-3. **`autoforge skill-info`** &mdash; generates a complete skill description from a workflow config
+3. **`autoforge skill-info`** &mdash; generates a tool-contract description (metrics, commands, budget) from a workflow config
 
 The agent maintains full context across iterations &mdash; it remembers what it tried, adapts strategy, and uses its native capabilities for git, file editing, and test running. AutoForge provides the measurement infrastructure; the agent provides the intelligence.
 
@@ -74,12 +74,12 @@ Requires Python 3.10+.
 
 ### Using with an AI Agent (Recommended)
 
-1. Generate a skill description for the agent:
+1. Generate a tool contract for the agent:
    ```bash
    autoforge skill-info complexity_refactor --path ./src --target 3.0
    ```
-2. Provide the skill description as context to your agent (paste into conversation, add to CLAUDE.md, etc.)
-3. The agent follows the skill protocol: measure, identify targets, make changes, test, re-measure, commit
+2. Provide the tool contract as context to your agent (paste into conversation, add to CLAUDE.md, etc.)
+3. The agent uses the measurement commands and budget limits to drive its own improvement loop
 
 Or have the agent call the measurement commands directly as tools:
 
@@ -153,7 +153,7 @@ Identify the worst files for a metric. Agents use this to know where to focus.
 
 ### `autoforge skill-info <workflow>`
 
-Generate a skill description from a workflow config for AI agent consumption.
+Generate a tool-contract description from a workflow config for AI agent consumption. Outputs metric info, CLI commands, budget limits, constraints, and domain-specific instructions. Does not prescribe iteration strategy or git workflow — those are the agent's domain.
 
 | Flag | Description |
 |---|---|
@@ -161,7 +161,6 @@ Generate a skill description from a workflow config for AI agent consumption.
 | `--repo, -r` | Repository root (default: `.`) |
 | `--target, -t` | Target metric value |
 | `--config, -c` | Path to workflow YAML config file |
-| `--test-command` | Test command for skill description |
 | `--format, -f` | Output format: `text` (markdown) or `json` |
 | `--output, -o` | Save output to file |
 
@@ -225,7 +224,7 @@ AutoForge provides the measurement layer. The AI agent provides the intelligence
 ### Core Components
 
 - **MetricAdapter** &mdash; protocol for plugging in any measurement tool. Adapters normalize tool output into a standard `MetricResult` and identify priority files for the agent to focus on.
-- **Skill Generator** &mdash; produces structured skill descriptions from workflow configs, giving agents complete instructions for executing a workflow.
+- **Skill Generator** &mdash; produces tool-contract descriptions from workflow configs (metrics, commands, budget, constraints). Agents receive what to measure and what limits to respect; they own iteration strategy and coding approach.
 - **WorkflowConfig** &mdash; YAML-defined workflow with metrics, budgets, constraints, and agent guidance.
 - **WorkflowRunner** &mdash; orchestrates an autonomous iteration loop (legacy mode, for unattended runs).
 - **BudgetManager** &mdash; enforces iteration/token/time limits and detects improvement stalls (used by autonomous mode; skill descriptions communicate budget rules to agents).
@@ -274,7 +273,12 @@ Both bugs were invisible to the metric itself &mdash; they required qualitative 
 
 ## Claude Code Slash Commands
 
-AutoForge includes reference [Claude Code slash commands](https://docs.anthropic.com/en/docs/claude-code/slash-commands) in `.claude/commands/` that wire AutoForge workflows as `/project` commands. These are thin Layer 3 wrappers &mdash; they call `autoforge skill-info` to inject the workflow protocol into the agent's context, then the agent drives the loop using `autoforge measure` and `autoforge targets` as CLI tools.
+AutoForge includes reference [Claude Code slash commands](https://docs.anthropic.com/en/docs/claude-code/slash-commands) in `.claude/commands/` that wire AutoForge workflows as `/project` commands. Each command has two layers:
+
+1. **Tool contract** (from `autoforge skill-info`) &mdash; metric info, CLI commands, budget limits, constraints
+2. **Behavioral guidance** (in the slash command itself) &mdash; iteration protocol, coding guidelines, getting-started steps
+
+This separation lets `skill-info` stay focused on measurement infrastructure while the slash command provides workflow-specific agent instructions.
 
 Available commands:
 
@@ -284,7 +288,7 @@ Available commands:
 | `/project:improve-test-quality ./src` | `test_quality` | Improve Python test suite quality (TQS) |
 | `/project:improve-go-tests .` | `go_test_quality` | Improve Go test suite quality (TQS) |
 
-Each command accepts a path argument (the directory to improve). The agent receives the full skill description and follows the iteration protocol autonomously.
+Each command accepts a path argument (the directory to improve).
 
 **Why these are in the repo, not in AutoForge core:** Different agent frameworks have different skill/tool APIs (Claude Code slash commands, OpenAI function calling, LangChain tools, etc.). AutoForge shouldn't be coupled to any specific agent framework. These commands are a documented example of how to wire AutoForge into Claude Code &mdash; adapt the pattern for your agent framework.
 
