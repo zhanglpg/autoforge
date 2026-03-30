@@ -13,7 +13,7 @@
 - Registry for adapters and workflows (entry-point discovery)
 - JSON and Markdown reporting with health dashboard
 - Tool architecture: agents call `autoforge measure` / `autoforge targets` as CLI tools
-- `SkillGenerator` for producing skill descriptions from workflow configs
+- `SkillGenerator` for producing tool-contract descriptions from workflow configs (metrics, commands, budget, constraints)
 - CI: `tests.yml` (Python 3.10-3.13 matrix), `autoforge.yml` (health + dry-run)
 
 ### Plugin Architecture
@@ -37,7 +37,7 @@
 
 ### Claude Code Integration
 - `.claude/commands/` with slash commands: `refactor-complexity`, `improve-test-quality`, `improve-go-tests`
-- Commands call `autoforge skill-info` and let the agent drive the workflow
+- Commands call `autoforge skill-info` for tool contract and provide behavioral guidance (iteration protocol, coding guidelines) directly
 
 ## Current State
 

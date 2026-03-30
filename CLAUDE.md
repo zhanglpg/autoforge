@@ -69,7 +69,7 @@ pytest
 AutoForge provides measurement tools that AI agents call during their workflows:
 - **`autoforge measure`** — runs a metric adapter, returns structured JSON
 - **`autoforge targets`** — identifies worst files for a metric
-- **`autoforge skill-info`** — generates skill descriptions from workflow configs
+- **`autoforge skill-info`** — generates tool-contract descriptions (metrics, commands, budget) from workflow configs
 
 The agent maintains full context across iterations, manages git, runs tests, and reasons about strategy. AutoForge handles metric collection and normalization.
 
@@ -78,7 +78,7 @@ Legacy autonomous mode (`autoforge run`) spawns the agent as a subprocess each i
 Core components:
 - **MetricAdapter**: Protocol for plugging in measurement tools
 - **WorkflowConfig**: YAML-defined workflow with metrics, budget, constraints
-- **SkillGenerator**: Produces skill descriptions from workflow configs
+- **SkillGenerator**: Produces tool-contract descriptions from workflow configs (metrics, commands, budget, constraints)
 - **WorkflowRunner**: Executes the iteration loop (legacy autonomous mode)
 - **BudgetManager**: Enforces hard limits, detects improvement stalls (autonomous mode; communicated to agents via skill descriptions)
 - **GitManager**: Creates branches, commits per iteration, supports rollback (autonomous mode)

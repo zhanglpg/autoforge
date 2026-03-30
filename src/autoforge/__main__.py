@@ -262,7 +262,6 @@ def cmd_skill_info(args: argparse.Namespace) -> int:
         repo_path=repo_path,
         target_path=target_path,
         target_value=args.target,
-        test_command=args.test_command,
     )
 
     if args.format == "json":
@@ -494,11 +493,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--config", "-c",
         default=None,
         help="Path to workflow YAML config file",
-    )
-    skill_p.add_argument(
-        "--test-command",
-        default=None,
-        help="Test command for skill description",
     )
     skill_p.add_argument(
         "--format", "-f",

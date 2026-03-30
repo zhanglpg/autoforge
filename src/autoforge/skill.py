@@ -1,14 +1,10 @@
 """
 Skill description generator for AutoForge.
 
-Generates structured skill descriptions that allow AI coding agents (e.g.,
-Claude Code) to drive AutoForge workflows directly. The agent reads the skill
-description, calls `autoforge measure` and `autoforge targets` as CLI tools,
-reasons about results, makes changes, and re-measures — all within its native
-capabilities.
-
-This is the hybrid architecture: AutoForge owns measurement and budget rules,
-the agent owns coding strategy and reasoning.
+Generates tool-contract descriptions that tell AI coding agents what metrics
+are available, how to invoke measurement commands, and what budget/constraint
+rules apply. The agent owns its own iteration strategy, git workflow, and
+coding approach — this module only surfaces the measurement interface.
 """
 
 from __future__ import annotations
@@ -25,20 +21,18 @@ def generate_skill_description(
     repo_path: str = ".",
     target_path: str | None = None,
     target_value: float | None = None,
-    test_command: str | None = None,
 ) -> str:
-    """Generate a complete skill description for an AI coding agent.
+    """Generate a tool-contract skill description for an AI coding agent.
 
-    The description instructs the agent on how to execute the workflow
-    using `autoforge measure` and `autoforge targets` CLI commands,
-    while following the workflow's budget and constraint rules.
+    The description tells the agent what metric to optimize, how to measure it,
+    and what budget/constraint rules to follow. It does NOT prescribe iteration
+    strategy, git workflow, or coding approach — those are the agent's domain.
 
     Args:
         config: The workflow configuration to generate a skill for.
         repo_path: Repository root path.
         target_path: Target path to improve (defaults to repo_path).
         target_value: Override target metric value.
-        test_command: Override test command for regression guard.
 
     Returns:
         A multi-line skill description string.
@@ -59,16 +53,6 @@ def generate_skill_description(
         f"--path {target_path} --repo {repo_path} -n {config.budget.max_files_per_iteration}"
     )
 
-    # Build test command section
-    test_section = ""
-    if test_command:
-        test_section = f"Test command: `{test_command}`"
-    else:
-        test_section = (
-            "Auto-detect test command (pytest, npm test, go test, cargo test), "
-            "or run the project's standard test suite."
-        )
-
     # Constraint metrics section
     constraints_section = ""
     if config.constraint_metrics:
@@ -79,15 +63,23 @@ def generate_skill_description(
                 f"from baseline ({c.direction.value})"
             )
         constraints_section = (
-            "## Constraints (do not violate)\n" + "\n".join(constraints)
+            "## Constraints (do not violate)\n\n" + "\n".join(constraints)
         )
 
     # Custom instructions from workflow
     custom_instructions = ""
     if config.agent.system_prompt_addendum:
         custom_instructions = (
-            "## Domain-Specific Instructions\n"
+            "## Domain-Specific Instructions\n\n"
             f"{config.agent.system_prompt_addendum.strip()}"
+        )
+
+    # Iteration protocol from workflow YAML (if present)
+    iteration_protocol = ""
+    if config.skill_mode.iteration_protocol:
+        iteration_protocol = (
+            "## Iteration Protocol\n\n"
+            f"{config.skill_mode.iteration_protocol.strip()}"
         )
 
     # Skill description from workflow YAML (if present)
@@ -100,20 +92,8 @@ def generate_skill_description(
 
 {workflow_skill_desc}
 
-You are executing the **{config.name}** workflow. Your objective is to
-{direction_verb} the **{config.primary_metric.name}** metric to {direction_cmp}
-**{target}** through iterative code changes.
-
-## How This Works
-
-You drive the iteration loop. Each iteration:
-1. **Measure** the current metric by running the measurement command
-2. **Identify targets** — find the worst files to focus on
-3. **Make changes** — edit code to improve the metric (2-4 focused changes)
-4. **Run tests** — verify no regressions
-5. **Re-measure** — confirm improvement
-6. **Commit** — commit the iteration with a descriptive message
-7. **Repeat** until the target is met or budget is exhausted
+Your objective is to {direction_verb} the **{config.primary_metric.name}** metric to \
+{direction_cmp} **{target}**.
 
 ## Measurement Commands
 
@@ -143,65 +123,47 @@ The measure command returns JSON with this structure:
 Stop after any of these limits are reached:
 - **Max iterations**: {config.budget.max_iterations}
 - **Max wall-clock time**: {config.budget.max_wall_clock_minutes} minutes
-- **Stall detection**: If improvement is less than {config.budget.min_improvement_percent}%
-  for {config.budget.stall_patience} consecutive iterations, stop early
+- **Stall detection**: If improvement is less than {config.budget.min_improvement_percent}% \
+for {config.budget.stall_patience} consecutive iterations, stop early
 - **Max files per iteration**: {config.budget.max_files_per_iteration}
-
-## Regression Guard
-
-After each change, before committing:
-- {test_section}
-- If tests fail, **revert your changes** for this iteration and try a different approach
-- Never commit code that breaks tests
 
 {constraints_section}
 
 {custom_instructions}
 
-## Git Convention
+{iteration_protocol}"""
 
-- Create a branch: `autoforge/{config.name}/<timestamp>` (if not already on one)
-- Commit message format: `autoforge({config.name}): iteration N — metric before -> after`
-- If an iteration fails validation, revert and try again with a different approach
-
-## Important Rules
-
-- Make **focused, minimal changes** per iteration (2-4 related refactorings)
-- Preserve existing behavior — no feature additions unless the workflow requires it
-- Always measure before and after to confirm improvement
-- If you get stuck or the metric isn't improving, try a fundamentally different approach
-- Track your iteration count and stop when budget is exhausted
-
-## Getting Started
-
-1. Run the measure command to get the baseline
-2. Run the targets command to see which files need the most work
-3. Start your first iteration
-"""
+    # Clean up excessive blank lines from empty optional sections
+    import re
+    skill = re.sub(r'\n{3,}', '\n\n', skill)
 
     return skill.strip()
 
 
 def generate_skill_json(
     config: WorkflowConfig,
-    **kwargs,
+    *,
+    repo_path: str = ".",
+    target_path: str | None = None,
+    target_value: float | None = None,
 ) -> str:
     """Generate skill description as a structured JSON document.
 
-    Useful for programmatic consumption or integration with agent frameworks.
+    Returns pure structured data for programmatic consumption — no embedded
+    text blob. Agents and frameworks can use this to build their own prompts.
     """
-    description = generate_skill_description(config, **kwargs)
+    target_path = target_path or repo_path
+    target = target_value or config.primary_metric.default_target
 
     data = {
         "skill_name": config.name,
         "version": config.version,
         "description": config.description,
-        "workflow": config.name,
         "adapter": config.adapter,
         "primary_metric": {
             "name": config.primary_metric.name,
             "direction": config.primary_metric.direction.value,
-            "target": kwargs.get("target_value") or config.primary_metric.default_target,
+            "target": target,
         },
         "budget": {
             "max_iterations": config.budget.max_iterations,
@@ -211,8 +173,22 @@ def generate_skill_json(
             "max_files_per_iteration": config.budget.max_files_per_iteration,
         },
         "commands": {
-            "measure": f"autoforge measure {config.adapter} --path {{target_path}} --repo {{repo_path}} --format json",
-            "targets": f"autoforge targets {config.adapter} --path {{target_path}} --repo {{repo_path}} -n {config.budget.max_files_per_iteration}",
+            "measure": (
+                f"autoforge measure {config.adapter} "
+                f"--path {target_path} --repo {repo_path} --format json"
+            ),
+            "targets": (
+                f"autoforge targets {config.adapter} "
+                f"--path {target_path} --repo {repo_path} "
+                f"-n {config.budget.max_files_per_iteration}"
+            ),
+        },
+        "output_schema": {
+            "metric_name": "<string>",
+            "value": "<float>",
+            "unit": "<string>",
+            "direction": "minimize|maximize",
+            "breakdown": {"<file_path>": "<float>"},
         },
         "constraints": [
             {
@@ -222,7 +198,12 @@ def generate_skill_json(
             }
             for c in config.constraint_metrics
         ],
-        "skill_description": description,
     }
+
+    if config.agent.system_prompt_addendum:
+        data["domain_instructions"] = config.agent.system_prompt_addendum.strip()
+
+    if config.skill_mode.iteration_protocol:
+        data["iteration_protocol"] = config.skill_mode.iteration_protocol.strip()
 
     return json.dumps(data, indent=2)
