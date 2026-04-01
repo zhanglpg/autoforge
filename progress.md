@@ -43,7 +43,7 @@
 
 AutoForge is a **measurement toolkit for AI agents**. It provides CLI commands (`measure`, `targets`, `skill-info`) that AI coding agents call as tools during iterative code improvement workflows. Legacy autonomous mode (`autoforge run`) is still available.
 
-370 tests across 13 test files. All core modules have dedicated test suites.
+282 tests across 11 test files. All core modules have dedicated test suites, plus an integration test suite covering end-to-end CLI workflows.
 
 ## Known Gaps
 
@@ -58,8 +58,8 @@ AutoForge is a **measurement toolkit for AI agents**. It provides CLI commands (
 - [ ] **Type Safety + Security** — Lint/type error validation in regression guard, security scanning
 - [ ] **LLM-as-Judge** — Metric audit step in workflow configs (periodic LLM cross-check of metric outputs)
 - [ ] **More language adapters** — Test quality adapters for JS/TS, Java, Rust
-- [ ] **CLI test coverage** — Tests for `skill.py`, `measure`, and `targets` commands
-- [ ] **Integration testing** — End-to-end tool-mode workflow with Claude Code
+- [x] **CLI test coverage** — Tests for `skill.py`, `measure`, and `targets` commands
+- [x] **Integration testing** — End-to-end CLI integration tests (measure, targets, skill-info, health, list, dry-run, agent workflow simulation)
 - [ ] **MCP server integration** — Richer agent-tool communication
 - [ ] **Scale & Ecosystem** — Multi-agent parallel execution, configurable health thresholds
 - [ ] **Deprecation path for autonomous `run` mode**

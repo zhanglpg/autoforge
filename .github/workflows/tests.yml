@@ -28,6 +28,7 @@ jobs:
           pip install -e ".[test]"
           pip install -e packages/autoforge-complexity
           pip install -e packages/autoforge-test-quality
+          pip install -e packages/autoforge-go-test-quality
 
       - name: Run tests
         run: pytest --tb=short -q
