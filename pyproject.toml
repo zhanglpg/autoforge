@@ -28,9 +28,11 @@ dependencies = [
 [project.optional-dependencies]
 complexity = ["autoforge-complexity>=0.1.0"]
 test-quality = ["autoforge-test-quality>=0.1.0"]
+type-safety = ["autoforge-type-safety>=0.1.0"]
 all = [
     "autoforge-complexity>=0.1.0",
     "autoforge-test-quality>=0.1.0",
+    "autoforge-type-safety>=0.1.0",
 ]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4.0"]
