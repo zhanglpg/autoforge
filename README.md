@@ -245,6 +245,10 @@ Improves Python test suite quality by combining coverage measurement, function g
 
 Improves Go test suite quality using the Go toolchain. Combines statement coverage (`go test -cover`), exported function coverage (`go tool cover -func`), regex-based assertion analysis of `_test.go` files, and optional mutation testing (`go-mutesting`). Recognizes Go-specific quality patterns: table-driven tests, subtests (`t.Run`), and testify assertions &mdash; awarding quality bonuses for idiomatic Go testing practices.
 
+### `type_safety`
+
+Reduces type errors using [pyright](https://github.com/microsoft/pyright) (default) or mypy. Measures per-file type error count and iteratively fixes errors through type annotation and correction. The agent adds type annotations to function signatures, fixes actual type errors (wrong types, missing None checks), and uses typing constructs (Optional, Union, TypeVar, Protocol, etc.) while preserving runtime behavior.
+
 ## Metric Auditing: Metrics Drive, LLMs Verify
 
 AutoForge metrics are designed to drive iterative improvement loops, but **metrics alone are not sufficient for high-quality results**. Quantitative metrics can be gamed, miscalibrated, or blind to semantic quality. The recommended workflow uses metrics for scale and LLM judgment for calibration:
@@ -287,6 +291,7 @@ Available commands:
 | `/project:refactor-complexity ./src` | `complexity_refactor` | Iteratively reduce code complexity (NCS) |
 | `/project:improve-test-quality ./src` | `test_quality` | Improve Python test suite quality (TQS) |
 | `/project:improve-go-tests .` | `go_test_quality` | Improve Go test suite quality (TQS) |
+| `/project:improve-type-safety ./src` | `type_safety` | Reduce type errors (pyright/mypy) |
 
 Each command accepts a path argument (the directory to improve).
 
@@ -315,7 +320,8 @@ Once registered, agents can immediately use `autoforge measure my_metric` and `a
 .claude/commands/                       # Claude Code slash commands (Layer 3 wrappers)
 ├── refactor-complexity.md              # /project:refactor-complexity
 ├── improve-test-quality.md             # /project:improve-test-quality
-└── improve-go-tests.md                 # /project:improve-go-tests
+├── improve-go-tests.md                 # /project:improve-go-tests
+└── improve-type-safety.md              # /project:improve-type-safety
 
 src/autoforge/                          # Core framework
 ├── __init__.py                         # Package version
@@ -333,7 +339,8 @@ src/autoforge/                          # Core framework
 └── workflows/
     ├── complexity_refactor.yaml
     ├── test_quality.yaml
-    └── go_test_quality.yaml
+    ├── go_test_quality.yaml
+    └── type_safety.yaml
 
 packages/
 ├── autoforge-complexity/               # Complexity adapter package
@@ -342,9 +349,12 @@ packages/
 ├── autoforge-test-quality/             # Test quality adapter package (Python)
 │   └── src/autoforge_test_quality/
 │       └── _adapter.py                 # TestQualityAdapter (coverage, assertions, mutation)
-└── autoforge-go-test-quality/          # Test quality adapter package (Go)
-    └── src/autoforge_go_test_quality/
-        └── _adapter.py                 # GoTestQualityAdapter (go test, cover, assertions)
+├── autoforge-go-test-quality/          # Test quality adapter package (Go)
+│   └── src/autoforge_go_test_quality/
+│       └── _adapter.py                 # GoTestQualityAdapter (go test, cover, assertions)
+└── autoforge-type-safety/              # Type safety adapter package (Python)
+    └── src/autoforge_type_safety/
+        └── _adapter.py                 # TypeSafetyAdapter (pyright/mypy type error count)
 ```
 
 ## Development

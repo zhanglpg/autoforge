@@ -29,14 +29,18 @@
 - **autoforge-go-test-quality** — Composite TQS for Go (coverage + assertion quality + mutation testing)
   - Go-specific quality indicators: table-driven tests, subtests, testify detection
   - Optional mutation testing via `go-mutesting`
+- **autoforge-type-safety** — Type error count via pyright (default) or mypy
+  - Per-file error count breakdown with worst-first targeting
+  - Supports pyright (native JSON output) and mypy (--output=json) backends
 
 ### Workflows
 - `complexity_refactor` — reduce NCS via complexity measurement
 - `test_quality` — improve Python test quality via TQS
 - `go_test_quality` — improve Go test quality via TQS
+- `type_safety` — reduce type errors via pyright/mypy
 
 ### Claude Code Integration
-- `.claude/commands/` with slash commands: `refactor-complexity`, `improve-test-quality`, `improve-go-tests`
+- `.claude/commands/` with slash commands: `refactor-complexity`, `improve-test-quality`, `improve-go-tests`, `improve-type-safety`
 - Commands call `autoforge skill-info` for tool contract and provide behavioral guidance (iteration protocol, coding guidelines) directly
 
 ## Current State
@@ -55,7 +59,8 @@ AutoForge is a **measurement toolkit for AI agents**. It provides CLI commands (
 
 ## Roadmap
 
-- [ ] **Type Safety + Security** — Lint/type error validation in regression guard, security scanning
+- [x] **Type Safety** — `autoforge-type-safety` adapter (pyright/mypy type error count), workflow YAML, slash command
+- [ ] **Security** — Security vulnerability scanning (SAST finding count by severity)
 - [ ] **LLM-as-Judge** — Metric audit step in workflow configs (periodic LLM cross-check of metric outputs)
 - [ ] **More language adapters** — Test quality adapters for JS/TS, Java, Rust
 - [x] **CLI test coverage** — Tests for `skill.py`, `measure`, and `targets` commands

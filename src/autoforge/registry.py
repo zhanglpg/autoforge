@@ -87,6 +87,7 @@ def _get_install_hint(name: str) -> str:
         "complexity": "pip install autoforge-complexity",
         "test_quality": "pip install autoforge-test-quality",
         "go_test_quality": "pip install autoforge-go-test-quality",
+        "type_safety": "pip install autoforge-type-safety",
     }
     return hints.get(name, "")
 

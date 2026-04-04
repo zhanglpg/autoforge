@@ -10,7 +10,8 @@ Metric-driven coding tools for AI agents. AutoForge provides measurement CLI com
 .claude/commands/                       # Claude Code slash commands (Layer 3 wrappers)
 ├── refactor-complexity.md
 ├── improve-test-quality.md
-└── improve-go-tests.md
+├── improve-go-tests.md
+└── improve-type-safety.md
 
 src/autoforge/                          # Core framework
 ├── __init__.py                         # Package version
@@ -28,15 +29,18 @@ src/autoforge/                          # Core framework
 └── workflows/
     ├── complexity_refactor.yaml
     ├── test_quality.yaml
-    └── go_test_quality.yaml
+    ├── go_test_quality.yaml
+    └── type_safety.yaml
 
 packages/                               # Adapter packages (separate install)
 ├── autoforge-complexity/               # pip install autoforge-complexity
 │   └── src/autoforge_complexity/
 ├── autoforge-test-quality/             # pip install autoforge-test-quality
 │   └── src/autoforge_test_quality/
-└── autoforge-go-test-quality/          # pip install autoforge-go-test-quality
-    └── src/autoforge_go_test_quality/
+├── autoforge-go-test-quality/          # pip install autoforge-go-test-quality
+│   └── src/autoforge_go_test_quality/
+└── autoforge-type-safety/              # pip install autoforge-type-safety
+    └── src/autoforge_type_safety/
 ```
 
 ## Key Commands

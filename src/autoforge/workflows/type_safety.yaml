@@ -1,0 +1,66 @@
+# AutoForge Workflow: Type Safety
+#
+# Uses pyright to measure type error count and iteratively fixes
+# type errors through annotation and correction.
+
+name: type_safety
+version: "1.0"
+description: "Reduce type errors through iterative type annotation and error fixing"
+adapter: type_safety
+
+language_support:
+  python:
+    metric_tool: pyright
+    metric_command: "pyright --outputjson {target_path}"
+    metric_parser: "pyright_json"
+
+primary_metric:
+  name: type_error_count
+  direction: minimize
+  default_target: 0
+
+constraint_metrics:
+  - name: test_suite_pass
+    tolerance_percent: 0
+    direction: maximize
+
+budget:
+  max_iterations: 15
+  max_tokens: 500000
+  max_wall_clock_minutes: 30
+  stall_patience: 3
+  min_improvement_percent: 5.0
+  max_files_per_iteration: 5
+
+scope:
+  priority: worst_first
+
+agent:
+  command: "claude"
+  skill: "improve-type-safety"
+  system_prompt_addendum: |
+    You are fixing type errors detected by pyright. For each target file:
+    1. Read the diagnostics to understand what type errors exist
+    2. Add type annotations to function signatures, variables, and return types
+    3. Fix actual type errors (wrong types passed, missing None checks, etc.)
+    4. Use typing module constructs: Optional, Union, TypeVar, Protocol, etc.
+    5. Prefer precise types over Any -- but use Any as a last resort if needed
+    6. Do NOT change runtime behavior -- these are type-annotation-only changes
+       unless fixing a genuine type bug
+
+# Skill mode: instructions for AI agents driving this workflow directly.
+# Generate full skill description with: autoforge skill-info type_safety
+skill_mode:
+  enabled: true
+  measurement_commands:
+    measure: "autoforge measure type_safety --path {target_path} --repo {repo_path} --format json"
+    targets: "autoforge targets type_safety --path {target_path} --repo {repo_path} -n 5"
+  iteration_protocol: |
+    Each iteration:
+    1. Run `autoforge measure type_safety` to get current error count
+    2. Run `autoforge targets type_safety` to find files with most errors
+    3. Read the target files and understand the type errors
+    4. Add type annotations and fix type errors
+    5. Run tests to verify no regressions
+    6. Re-measure to confirm error count decreased
+    7. Commit with message: autoforge(type_safety): iteration N — errors before -> after
